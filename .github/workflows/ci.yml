@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      COMPOSE_FILE: docker-compose.cluster-test.yaml
       DB_HOST: 127.0.0.1
       DB_PORT: "15439"
       DB_NAME: zipwit_catalog_test
@@ -47,7 +48,19 @@ jobs:
       - run: pnpm build
 
       - name: Start disposable PostgreSQL and three-node Redis Cluster
-        run: docker compose -f docker-compose.cluster-test.yaml up -d --wait
+        run: |
+          docker compose up -d --wait db redis-1 redis-2 redis-3
+          # Blocks until cluster creation finishes; fails the step on a non-zero exit.
+          docker compose run --rm redis-cluster-init
+          for port in 17379 17380 17381; do
+            ok=
+            for i in $(seq 1 30); do
+              if docker compose exec -T redis-1 redis-cli -p "$port" cluster info \
+                | tr -d '\r' | grep -q '^cluster_state:ok$'; then ok=1; break; fi
+              sleep 1
+            done
+            [ -n "$ok" ] || { echo "node $port never reported cluster_state:ok"; exit 1; }
+          done
 
       - run: pnpm search:check
 
@@ -56,6 +69,13 @@ jobs:
 
       - run: pnpm catalog:check
 
+      - name: Debug cluster
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --tail=50 db redis-1 redis-2 redis-3
+          docker compose exec -T redis-1 redis-cli -p 17379 cluster nodes || true
+
       - name: Stop test services
         if: always()
-        run: docker compose -f docker-compose.cluster-test.yaml down
+        run: docker compose down
