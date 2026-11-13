@@ -4,6 +4,7 @@ import { storeIdSchema } from "#/features/stores/store";
 import { StoreLabel } from "#/features/stores/store-label";
 import { useTranslation } from "#/i18n/translate";
 import { usePriceFormatter } from "#/lib/price";
+import { cn } from "#/lib/utils";
 import { estimateShipment, type ShipmentQuote } from "./shipping";
 
 export function ShipmentDetails({
@@ -11,11 +12,13 @@ export function ShipmentDetails({
 	items,
 	quote,
 	onBrowse,
+	className,
 }: {
 	number: number;
 	items: CartItem[];
 	quote?: ShipmentQuote;
 	onBrowse?: () => void;
+	className?: string;
 }) {
 	const t = useTranslation();
 	const storeId = storeIdSchema.safeParse(
@@ -30,7 +33,12 @@ export function ShipmentDetails({
 			? Math.max(0, rule.freeFromUsd - amounts.subtotalUsd)
 			: null;
 	return (
-		<div className="space-y-2 rounded-lg bg-muted/50 p-3 text-xs leading-relaxed">
+		<div
+			className={cn(
+				"space-y-2 rounded-lg bg-muted/50 p-3 text-xs leading-relaxed",
+				className,
+			)}
+		>
 			<h3 className="text-sm font-semibold">
 				{t("Shipment {{number}}", { number })}
 			</h3>

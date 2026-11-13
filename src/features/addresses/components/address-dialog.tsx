@@ -1,5 +1,8 @@
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { motion } from "motion/react";
 import { useId, useMemo } from "react";
 import { useAppForm } from "#/components/form/app-form";
+import { useSceneReveal } from "#/components/motion/use-scene-reveal";
 import { Button } from "#/components/ui/button";
 import {
 	Dialog,
@@ -23,6 +26,13 @@ import { useSaveAddress } from "../use-addresses";
 
 const textFields = [
 	{ name: "fullName", label: "Name", autoComplete: "name", required: true },
+	{
+		name: "phone",
+		label: "Tel",
+		autoComplete: "tel",
+		type: "tel",
+		required: true,
+	},
 	{
 		name: "line1",
 		label: "Address 1",
@@ -59,13 +69,6 @@ const textFields = [
 		autoComplete: "country-name",
 		required: true,
 	},
-	{
-		name: "phone",
-		label: "Tel",
-		autoComplete: "tel",
-		type: "tel",
-		required: true,
-	},
 ] as const;
 
 type AddressDialogProps = {
@@ -90,14 +93,14 @@ export function AddressDialog({
 	const t = useTranslation();
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl sm:max-w-2xl">
-				<DialogHeader>
-					<DialogTitle>
+			<DialogContent className="address-dialog max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-xl p-0 sm:max-w-2xl">
+				<DialogHeader className="border-b border-border/70 px-6 pt-7 pb-5 sm:px-8">
+					<DialogTitle className="pr-8 text-2xl tracking-tight">
 						{address ? t("Edit address") : t("Add address")}
 					</DialogTitle>
-					<p className="text-sm text-muted-foreground">
+					<DialogPrimitive.Description className="max-w-md text-sm text-muted-foreground">
 						{t("Enter the recipient and delivery address details.")}
-					</p>
+					</DialogPrimitive.Description>
 				</DialogHeader>
 
 				<AddressForm
@@ -132,6 +135,7 @@ type AddressFormProps = {
 
 function AddressForm({ address, firstAddress, onDone }: AddressFormProps) {
 	const locale = useLocale();
+	const reveal = useSceneReveal();
 	const addressSchema = useMemo(() => createAddressSchema(locale), [locale]);
 	const t = useTranslation();
 	const save = useSaveAddress();
@@ -161,71 +165,81 @@ function AddressForm({ address, firstAddress, onDone }: AddressFormProps) {
 	return (
 		<form.AppForm>
 			<form.FormRoot className="flex min-h-0 flex-1 flex-col">
-				<FieldGroup className="gap-5 pb-6">
-					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						{textFields.map(({ name, ...props }) => (
-							<div
-								key={name}
-								className={
-									name === "fullName" || name === "line1" || name === "line2"
-										? "sm:col-span-2"
-										: undefined
-								}
-							>
-								<form.AppField name={name}>
-									{(field) => (
-										<field.FormTextField
-											{...props}
-											label={t(props.label)}
-											description={
-												"description" in props
-													? t(props.description)
-													: undefined
-											}
-											disabled={save.isPending}
-										/>
-									)}
-								</form.AppField>
-							</div>
-						))}
-					</div>
+				<motion.div {...reveal} className="px-6 sm:px-8">
+					<FieldGroup className="gap-5 pb-6">
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							{textFields.map(({ name, ...props }) => (
+								<div
+									key={name}
+									className={
+										name === "line1" || name === "line2"
+											? "sm:col-span-2"
+											: undefined
+									}
+								>
+									<form.AppField name={name}>
+										{(field) => (
+											<field.FormTextField
+												{...props}
+												className="h-12 bg-background/60"
+												label={t(props.label)}
+												description={
+													"description" in props
+														? t(props.description)
+														: undefined
+												}
+												disabled={save.isPending}
+											/>
+										)}
+									</form.AppField>
+								</div>
+							))}
+						</div>
 
-					<form.AppField name="isPrimary">
-						{(field) => (
-							<Field orientation="horizontal">
-								<FieldContent>
-									<FieldLabel htmlFor={primaryId}>
-										{t("Use as primary address")}
-									</FieldLabel>
-									<FieldDescription>
-										{primaryHint(address, firstAddress, t)}
-									</FieldDescription>
-								</FieldContent>
-								<Switch
-									id={primaryId}
-									name={field.name}
-									onBlur={field.handleBlur}
-									checked={field.state.value}
-									disabled={lockedPrimary || save.isPending}
-									onCheckedChange={field.handleChange}
-								/>
-							</Field>
-						)}
-					</form.AppField>
+						<form.AppField name="isPrimary">
+							{(field) => (
+								<Field
+									orientation="horizontal"
+									className="rounded-md border border-border/70 bg-background/60 p-4"
+								>
+									<FieldContent>
+										<FieldLabel htmlFor={primaryId}>
+											{t("Use as primary address")}
+										</FieldLabel>
+										<FieldDescription>
+											{primaryHint(address, firstAddress, t)}
+										</FieldDescription>
+									</FieldContent>
+									<Switch
+										id={primaryId}
+										name={field.name}
+										onBlur={field.handleBlur}
+										checked={field.state.value}
+										disabled={lockedPrimary || save.isPending}
+										onCheckedChange={field.handleChange}
+									/>
+								</Field>
+							)}
+						</form.AppField>
 
-					<form.FormServerError />
-				</FieldGroup>
+						<form.FormServerError />
+					</FieldGroup>
+				</motion.div>
 
-				<div className="flex justify-end gap-2 border-t pt-5">
+				<div className="sticky bottom-0 z-10 flex justify-end gap-3 border-t bg-popover px-6 py-4 sm:px-8">
 					<Button
 						type="button"
 						variant="outline"
+						className="h-11 px-5"
 						disabled={save.isPending}
 						onClick={onDone}
 					>
 						{t("Cancel")}
 					</Button>
-					<form.FormSubmitButton isPending={save.isPending}>
+					<form.FormSubmitButton
+						className="h-11 px-6"
+						isPending={save.isPending}
+					>
 						{address ? t("Save changes") : t("Save address")}
 					</form.FormSubmitButton>
 				</div>

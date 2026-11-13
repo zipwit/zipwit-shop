@@ -8,6 +8,7 @@ import {
 } from "#/data/catalog";
 import { site } from "#/data/site";
 import { CatalogListing } from "#/features/catalog/components/catalog-listing";
+import { CategoryLinks } from "#/features/catalog/components/category-links";
 import { DepartmentBreadcrumbs } from "#/features/catalog/components/department-breadcrumbs";
 import { loadCatalog } from "#/features/search/catalog.queries";
 import {
@@ -55,6 +56,9 @@ function DepartmentPage() {
 				category={scope.category}
 			/>
 			<h1 className="type-title mt-7 text-3xl md:text-5xl">{title}</h1>
+			<div className="mt-6">
+				<CategoryLinks department={scope.department} />
+			</div>
 			<CatalogListing
 				key={`${scope.department}/${scope.category ?? ""}`}
 				scope={scope}

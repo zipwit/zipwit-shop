@@ -9,6 +9,7 @@ const sizeRank: Record<Category, (size: string) => number> = {
 		const index = CLOTHING_SIZES.indexOf(size.toLowerCase());
 		return index === -1 ? Number.POSITIVE_INFINITY : index;
 	},
+	accessories: () => Number.POSITIVE_INFINITY,
 };
 
 export const compareSizes = (category: Category, a: string, b: string) =>

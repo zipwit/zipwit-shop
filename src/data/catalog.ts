@@ -1,18 +1,14 @@
 import { z } from "zod";
 
 /**
- * Single source of truth for the storefront taxonomy.
- *
- * The slug tuples feed the Postgres enums, the zod schemas and the routes.
- * Adding a department or category here also needs a migration
- * (`pnpm db:generate && pnpm db:migrate`) and an entry in `tones` in
- * `components/home/department-tiles.tsx` (a new department won't compile
- * without one).
+ * Single source of truth for the storefront taxonomy and Redis catalog validation.
+ * Navigation and routes derive their choices from these values. Keep translations,
+ * seed fixtures, and department artwork aligned when extending the taxonomy.
  */
 export const departmentSlugs = ["men", "women", "kids"] as const;
 export type Department = (typeof departmentSlugs)[number];
 
-export const categorySlugs = ["shoes", "clothing"] as const;
+export const categorySlugs = ["shoes", "clothing", "accessories"] as const;
 export type Category = (typeof categorySlugs)[number];
 
 export const departments = {
@@ -24,6 +20,7 @@ export const departments = {
 export const categories = {
 	shoes: { label: "Shoes" },
 	clothing: { label: "Clothing" },
+	accessories: { label: "Accessories" },
 } satisfies Record<Category, { label: string }>;
 
 export const departmentSchema = z.enum(departmentSlugs);

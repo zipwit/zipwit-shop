@@ -1,45 +1,16 @@
 import { useAuth, useSession } from "@better-auth-ui/react";
-import { isValidElement, type ReactElement, type ReactNode } from "react";
-import {
-	ChevronsUpDown,
-	LogIn,
-	LogOut,
-	Settings,
-	UserPlus2,
-} from "#/components/icons";
+import type { ReactElement } from "react";
+import { ChevronsUpDown } from "#/components/icons";
 import { buttonVariants } from "#/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/ui/dropdown-menu";
 import { cn } from "#/lib/utils";
 import { UserAvatar } from "./user-avatar";
+import { type UserButtonLink, UserMenuContent } from "./user-menu-content";
 import { UserView } from "./user-view";
-
-/** Auth states a `UserButton` link can be visible in. */
-type UserButtonLinkVisibility = "authenticated" | "unauthenticated" | "always";
-
-/** A simple link entry rendered as a `DropdownMenuItem` in the `UserButton` menu. */
-type UserButtonLink = {
-	/** Visible label. */
-	label: ReactNode;
-	/** Destination URL. */
-	href: string;
-	/** Optional leading icon. Sized/coloured to match built-in items. */
-	icon?: ReactNode;
-	/** Forwarded to the underlying `DropdownMenuItem`. */
-	variant?: "default" | "destructive";
-	/**
-	 * When this link is visible based on auth state.
-	 * @default "always"
-	 */
-	visibility?: UserButtonLinkVisibility;
-};
 
 type UserButtonProps = {
 	className?: string;
@@ -60,26 +31,6 @@ type UserButtonProps = {
 	hideSettings?: boolean;
 };
 
-function renderUserLink(
-	link: UserButtonLink | ReactElement,
-	navigate: (options: { to: string; replace?: boolean }) => void,
-	fallbackKey: string,
-): ReactNode {
-	if (isValidElement(link)) return link;
-
-	const { label, href, icon, variant } = link;
-	return (
-		<DropdownMenuItem
-			key={fallbackKey}
-			variant={variant}
-			onClick={() => navigate({ to: href })}
-		>
-			{icon}
-			{label}
-		</DropdownMenuItem>
-	);
-}
-
 /**
  * Render a user dropdown button that shows user info, settings, and authentication actions.
  *
@@ -98,37 +49,17 @@ function renderUserLink(
  */
 export function UserButton({
 	className,
-	align,
+	align = "end",
 	side,
-	sideOffset,
+	sideOffset = 8,
 	size = "default",
 	variant = "ghost",
 	links,
 	hideSettings = false,
 }: UserButtonProps) {
-	const { authClient, basePaths, viewPaths, localization, plugins, navigate } =
-		useAuth();
+	const { authClient, localization } = useAuth();
 
 	const { data: session, isPending: sessionPending } = useSession(authClient);
-
-	const userLinks = links?.flatMap((link, index) => {
-		if (!isValidElement(link)) {
-			const visibility = link.visibility ?? "always";
-			if (visibility === "authenticated" && !session) return [];
-			if (visibility === "unauthenticated" && session) return [];
-		}
-		return [
-			renderUserLink(link, navigate, `user-button-link-${index.toString()}`),
-		];
-	});
-
-	// Whether anything renders between the user info label and the
-	// sign-out item, so the leading separator isn't shown with nothing
-	// to separate (see #439).
-	const hasSessionMenuItems =
-		(userLinks?.length ?? 0) > 0 ||
-		!hideSettings ||
-		plugins.some((plugin) => (plugin.userMenuItems?.length ?? 0) > 0);
 
 	return (
 		<DropdownMenu>
@@ -136,7 +67,10 @@ export function UserButton({
 				aria-label={size === "icon" ? localization.auth.account : undefined}
 				className={
 					size === "icon"
-						? cn("rounded-full", className)
+						? cn(
+								"rounded-full p-1 transition-colors hover:bg-brand/8 data-popup-open:bg-brand/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
+								className,
+							)
 						: cn(
 								buttonVariants({ variant, size: "lg" }),
 								"py-2.5 h-auto font-normal",
@@ -166,96 +100,12 @@ export function UserButton({
 			</DropdownMenuTrigger>
 
 			<DropdownMenuContent
-				className="dark min-w-40 md:min-w-56 max-w-[48svw]"
+				className="w-64 min-w-56 max-w-[calc(100vw-2rem)]"
 				side={side}
 				sideOffset={sideOffset}
 				align={align}
 			>
-				{session && (
-					<>
-						<DropdownMenuGroup>
-							<DropdownMenuLabel className="text-sm font-normal">
-								<UserView />
-							</DropdownMenuLabel>
-						</DropdownMenuGroup>
-
-						{hasSessionMenuItems && <DropdownMenuSeparator />}
-					</>
-				)}
-
-				{session ? (
-					<>
-						{userLinks}
-
-						{!hideSettings && (
-							<DropdownMenuItem
-								onClick={() =>
-									navigate({
-										to: `${basePaths.settings}/${viewPaths.settings.account}`,
-									})
-								}
-							>
-								<Settings className="text-muted-foreground" />
-
-								{localization.settings.settings}
-							</DropdownMenuItem>
-						)}
-
-						{plugins.flatMap((plugin) =>
-							plugin.userMenuItems?.map((Item, index) => (
-								<Item key={`${plugin.id}-${index.toString()}`} />
-							)),
-						)}
-
-						<DropdownMenuSeparator />
-
-						<DropdownMenuItem
-							onClick={() =>
-								navigate({
-									to: `${basePaths.auth}/${viewPaths.auth.signOut}`,
-								})
-							}
-						>
-							<LogOut className="text-muted-foreground" />
-
-							{localization.auth.signOut}
-						</DropdownMenuItem>
-					</>
-				) : (
-					<>
-						{userLinks}
-
-						<DropdownMenuItem
-							onClick={() =>
-								navigate({
-									to: `${basePaths.auth}/${viewPaths.auth.signIn}`,
-								})
-							}
-						>
-							<LogIn className="text-muted-foreground" />
-
-							{localization.auth.signIn}
-						</DropdownMenuItem>
-
-						<DropdownMenuItem
-							onClick={() =>
-								navigate({
-									to: `${basePaths.auth}/${viewPaths.auth.signUp}`,
-								})
-							}
-						>
-							<UserPlus2 className="text-muted-foreground" />
-
-							{localization.auth.signUp}
-						</DropdownMenuItem>
-
-						{plugins.flatMap((plugin) =>
-							plugin.userMenuItems?.map((Item, index) => (
-								<Item key={`${plugin.id}-${index.toString()}`} />
-							)),
-						)}
-					</>
-				)}
+				<UserMenuContent links={links} hideSettings={hideSettings} />
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

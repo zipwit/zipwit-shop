@@ -3,6 +3,6 @@ import { env } from "#/server/env.server";
 
 /** Settings the browser needs, resolved from the environment at runtime. */
 export const getPublicConfig = () => ({
-	chatEmbedUrl: env.CHAT_EMBED_URL ?? null,
+	siteUrl: env.SITE_URL,
 	socialProviders: enabledSocialProviders,
 });

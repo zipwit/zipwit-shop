@@ -1,8 +1,10 @@
 import { ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
+import { motion } from "motion/react";
 import { Section } from "#/components/layout/container";
 import { SectionHeader } from "#/components/layout/section-header";
+import { useSceneReveal } from "#/components/motion/use-scene-reveal";
 import {
 	categories,
 	categorySlugs,
@@ -11,57 +13,64 @@ import {
 	departments,
 } from "#/data/catalog";
 import { useTranslation } from "#/i18n/translate";
-import { cn } from "#/lib/utils";
+import { CategoryDiscovery } from "./category-discovery";
 
-/** One colour per department; a new department fails to compile until it has one. */
-const tones = {
-	men: "bg-neutral-950 text-white",
-	women: "bg-brand text-brand-foreground",
-	kids: "bg-neutral-100 text-neutral-950",
+const artwork = {
+	men: "/images/department-men-3d.webp",
+	women: "/images/department-women-3d.webp",
+	kids: "/images/department-kids-3d.webp",
 } satisfies Record<Department, string>;
 
 /** Big typographic tiles: the whole tile opens the department, the chips jump to a category. */
 export function DepartmentTiles() {
 	const t = useTranslation();
+	const reveal = useSceneReveal();
 	return (
-		<Section className="pt-4 md:pt-2">
+		<Section id="departments" className="scroll-mt-28" spacing="compact">
+			<CategoryDiscovery />
 			<SectionHeader
 				title={t("Shop by department")}
-				description={t("Shoes and clothing for the whole family.")}
+				description={t("Shoes, clothing and accessories for the whole family.")}
 			/>
 
 			<ul className="mt-8 grid gap-5 md:mt-10 md:grid-cols-3 md:gap-6">
-				{departmentSlugs.map((slug) => (
-					<li
+				{departmentSlugs.map((slug, index) => (
+					<motion.li
+						{...reveal}
+						transition={{ ...reveal.transition, delay: index * 0.1 }}
 						key={slug}
-						className={cn(
-							"group relative flex min-h-48 flex-col justify-between gap-6 overflow-hidden rounded-xl p-7 md:min-h-60 lg:p-9",
-							tones[slug],
-						)}
+						className="department-tile group relative flex min-w-0 flex-col overflow-hidden rounded-2xl p-6 lg:p-8"
 					>
-						<span
-							aria-hidden
-							className="absolute -right-6 -bottom-8 h-48 w-28 -skew-x-12 bg-current/5 transition-transform duration-300 group-hover:-translate-x-3"
-						/>
+						<div className="pointer-events-none mx-auto mb-5 aspect-square w-full max-w-72 select-none">
+							<img
+								src={artwork[slug]}
+								width={800}
+								height={800}
+								alt=""
+								loading="lazy"
+								decoding="async"
+								className="h-full w-full object-contain"
+							/>
+						</div>
 
-						<h3 className="type-title text-3xl lg:text-4xl">
+						<h3 className="type-title text-2xl lg:text-3xl">
 							<Link
 								to="/$department/{-$category}"
 								params={{ department: slug, category: undefined }}
-								className="after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-4 focus-visible:after:outline-current"
+								className="after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-4 focus-visible:after:outline-brand"
 							>
 								{t(departments[slug].label)}
 							</Link>
 						</h3>
 
-						<div className="relative flex items-end justify-between gap-4">
+						<div className="mt-5 flex items-end justify-between gap-4">
 							<ul className="flex flex-wrap gap-2">
 								{categorySlugs.map((category) => (
 									<li key={category}>
 										<Link
 											to="/$department/{-$category}"
 											params={{ department: slug, category }}
-											className="relative z-10 block rounded-full bg-current/10 px-4 py-2 font-medium text-sm hover:bg-current/20"
+											className="relative z-10 block rounded-full border border-brand/10 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-brand/25 hover:bg-brand/5 hover:text-brand"
 										>
 											{t(categories[category].label)}
 										</Link>
@@ -72,10 +81,10 @@ export function DepartmentTiles() {
 								icon={ArrowUpRight01Icon}
 								aria-hidden="true"
 								size={28}
-								className="shrink-0 transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1"
+								className="shrink-0 text-brand transition-transform duration-300 motion-safe:group-hover:translate-x-1 motion-safe:group-hover:-translate-y-1"
 							/>
 						</div>
-					</li>
+					</motion.li>
 				))}
 			</ul>
 		</Section>

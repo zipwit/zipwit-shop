@@ -13,7 +13,16 @@ type Social = {
 };
 
 export const socials: Social[] = [
-	{ label: "Instagram", href: undefined, icon: InstagramIcon },
-	{ label: "Facebook", href: undefined, icon: Facebook01Icon },
-	{ label: "TikTok", href: undefined, icon: TiktokIcon },
+	// Replace platform homepages with the shop's profile URLs when available.
+	{
+		label: "Facebook",
+		href: "https://www.facebook.com/",
+		icon: Facebook01Icon,
+	},
+	{
+		label: "Instagram",
+		href: "https://www.instagram.com/",
+		icon: InstagramIcon,
+	},
+	{ label: "TikTok", href: "https://www.tiktok.com/", icon: TiktokIcon },
 ];

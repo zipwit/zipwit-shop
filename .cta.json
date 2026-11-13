@@ -1,6 +1,6 @@
 {
 	"bundler": "vite",
-	"projectName": "2o-app",
+	"projectName": "zipwit-shop",
 	"mode": "file-router",
 	"typescript": true,
 	"packageManager": "pnpm",

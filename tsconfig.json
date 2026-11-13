@@ -2,7 +2,7 @@
 	"include": ["**/*.ts", "**/*.tsx"],
 	"exclude": [".output", "node_modules"],
 	"compilerOptions": {
-		"target": "ES2025",
+		"target": "es2025",
 		"jsx": "react-jsx",
 		"module": "ESNext",
 		"paths": {

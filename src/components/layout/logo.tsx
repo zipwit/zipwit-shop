@@ -12,9 +12,11 @@ export function Logo({ className }: { className?: string }) {
 			className="block w-fit"
 		>
 			<img
-				src="/images/logo.webp"
+				src="/images/zipwit-logo.webp"
+				width={724}
+				height={242}
 				alt={site.name}
-				className={cn("w-auto", className)}
+				className={cn("h-10 w-auto object-contain", className)}
 			/>
 		</Link>
 	);

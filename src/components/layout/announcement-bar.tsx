@@ -1,60 +1,26 @@
-import { DeliveryTruck01Icon, Message01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
-import { Button } from "#/components/ui/button";
-import { publicConfigQuery } from "#/features/config/config.queries";
+import { DeliveryTruck01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useTranslation } from "#/i18n/translate";
-import { openChat } from "#/lib/chat-widget";
-import { cn } from "#/lib/utils";
 import { Container } from "./container";
 
-function Item({
-	icon,
-	className,
-	children,
-}: {
-	icon: IconSvgElement;
-	className?: string;
-	children: ReactNode;
-}) {
-	return (
-		<p className={cn("flex items-center gap-2", className)}>
-			<HugeiconsIcon icon={icon} size={14} className="shrink-0" />
-			<span>{children}</span>
-		</p>
-	);
-}
-
-/** Delivery information and optional shopping support. */
 export function AnnouncementBar() {
 	const t = useTranslation();
-	const { data: config } = useSuspenseQuery(publicConfigQuery);
 
 	return (
 		<section
 			aria-label={t("Announcements")}
-			className="border-b bg-neutral-100 text-neutral-600 type-caption"
+			className="type-caption text-muted-foreground"
 		>
-			<Container className="flex min-h-8 items-center justify-center gap-6 py-1 md:justify-between">
-				{config.chatEmbedUrl && (
-					<Item icon={Message01Icon} className="hidden sm:flex">
-						{t("Questions about sizes?")}{" "}
-						<Button
-							variant="link"
-							size="xs"
-							type="button"
-							onClick={openChat}
-							className="h-auto p-0 font-semibold text-neutral-800 underline"
-						>
-							{t("Chat with us")}
-						</Button>
-					</Item>
-				)}
-
-				<Item icon={DeliveryTruck01Icon}>
-					{t("U.S. delivery · Shipping calculated at checkout")}
-				</Item>
+			<Container className="flex min-h-8 items-center justify-center py-1">
+				<p className="flex items-center gap-2">
+					<HugeiconsIcon
+						icon={DeliveryTruck01Icon}
+						size={14}
+						className="shrink-0"
+						aria-hidden="true"
+					/>
+					<span>{t("U.S. delivery · Shipping calculated at checkout")}</span>
+				</p>
 			</Container>
 		</section>
 	);

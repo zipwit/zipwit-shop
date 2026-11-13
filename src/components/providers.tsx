@@ -3,6 +3,7 @@ import { Facebook01Icon, GoogleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { MotionConfig } from "motion/react";
 import type { ComponentProps, ReactNode } from "react";
 import { addressesPlugin } from "#/features/addresses/addresses-plugin";
 import { authClient } from "#/features/auth/auth-client";
@@ -44,32 +45,37 @@ export function Providers({
 	const { data: config } = useSuspenseQuery(publicConfigQuery);
 
 	return (
-		<LocaleProvider value={locale}>
-			<MessagesProvider value={messages}>
-				<AuthProvider
-					locale={locale === "ka" ? georgianAuthLocale : defaultAuthLocale}
-					localization={localization}
-					emailAndPassword={{
-						enabled: true,
-						confirmPassword: true,
-						forgotPassword: true,
-						requireEmailVerification: true,
-					}}
-					authClient={authClient}
-					queryClient={queryClient}
-					redirectTo="/"
-					socialProviders={config.socialProviders.map((id) => ({
-						id,
-						...socialProviderDisplay[id],
-					}))}
-					navigate={navigate}
-					plugins={plugins}
-					Link={AuthLink}
-				>
-					{children}
-					<Toaster />
-				</AuthProvider>
-			</MessagesProvider>
-		</LocaleProvider>
+		<MotionConfig
+			reducedMotion="user"
+			transition={{ type: "spring", stiffness: 260, damping: 28 }}
+		>
+			<LocaleProvider value={locale}>
+				<MessagesProvider value={messages}>
+					<AuthProvider
+						locale={locale === "ka" ? georgianAuthLocale : defaultAuthLocale}
+						localization={localization}
+						emailAndPassword={{
+							enabled: true,
+							confirmPassword: true,
+							forgotPassword: true,
+							requireEmailVerification: true,
+						}}
+						authClient={authClient}
+						queryClient={queryClient}
+						redirectTo="/"
+						socialProviders={config.socialProviders.map((id) => ({
+							id,
+							...socialProviderDisplay[id],
+						}))}
+						navigate={navigate}
+						plugins={plugins}
+						Link={AuthLink}
+					>
+						{children}
+						<Toaster />
+					</AuthProvider>
+				</MessagesProvider>
+			</LocaleProvider>
+		</MotionConfig>
 	);
 }

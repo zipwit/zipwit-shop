@@ -2,7 +2,7 @@ import { viewPaths } from "@better-auth-ui/core";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Auth } from "#/components/auth/auth";
 import { site } from "#/data/site";
-import { translate as t } from "#/i18n/translate";
+import { authViewTitle } from "#/features/auth/auth-view-title";
 
 const validPaths = new Set<string>(Object.values(viewPaths.auth));
 
@@ -18,7 +18,9 @@ export const Route = createFileRoute("/auth/$path")({
 	},
 	head: ({ match }) => ({
 		meta: [
-			{ title: `${t("Sign in", {}, match.context.locale)} | ${site.name}` },
+			{
+				title: `${authViewTitle(match.params.path, match.context.locale)} | ${site.name}`,
+			},
 			{ name: "robots", content: "noindex" },
 		],
 	}),

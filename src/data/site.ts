@@ -1,6 +1,6 @@
 /** Storefront-wide settings and copy. Everything market- or brand-specific lives here. */
 export const site = {
-	name: "2o",
+	name: "Zipwit Shop",
 
 	/** ISO 4217 code used when a product or cart has no currency of its own. */
 	currency: "GEL",
@@ -8,11 +8,11 @@ export const site = {
 	/** IANA zone the store operates in; times shown to shoppers use it. */
 	timezone: "Asia/Tbilisi",
 
-	tagline: "Big brands. Small prices.",
+	tagline: "Premium brands. Best prices.",
 	description:
-		"Daily deals on shoes and clothing for men, women and kids, checked across wholesale stores.",
+		"Daily deals on shoes, clothing and accessories for men, women and kids, checked across wholesale stores.",
 	pitch:
-		"Discover shoes and clothing from wholesale stores, compare listed prices, and find something for the whole family.",
+		"Discover premium shoes, clothing and accessories from wholesale stores. Compare prices and find the best deals for your family.",
 	heroPitch:
-		"Discover shoes and clothing for the whole family. Compare the deals, find your fit, and spend less time searching.",
+		"Discover premium shoes, clothing and accessories for the whole family. Browse curated selections, compare the best deals, and find your perfect fit.",
 };

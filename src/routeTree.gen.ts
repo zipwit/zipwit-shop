@@ -17,6 +17,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as DepartmentChar123CategoryChar125RouteImport } from './routes/$department.{-$category}'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthPathRouteImport } from './routes/auth/$path'
+import { Route as CategoriesCategoryRouteImport } from './routes/categories.$category'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
 import { Route as SettingsPathRouteImport } from './routes/settings/$path'
 import { Route as StoresStoreIdRouteImport } from './routes/stores.$storeId'
@@ -63,6 +64,11 @@ const AuthPathRoute = AuthPathRouteImport.update({
   path: '/auth/$path',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CategoriesCategoryRoute = CategoriesCategoryRouteImport.update({
+  id: '/categories/$category',
+  path: '/categories/$category',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductSlugRoute = ProductSlugRouteImport.update({
   id: '/product/$slug',
   path: '/product/$slug',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/$department/{-$category}': typeof DepartmentChar123CategoryChar125Route
   '/api/health': typeof ApiHealthRoute
   '/auth/$path': typeof AuthPathRoute
+  '/categories/$category': typeof CategoriesCategoryRoute
   '/product/$slug': typeof ProductSlugRoute
   '/settings/$path': typeof SettingsPathRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/$department/{-$category}': typeof DepartmentChar123CategoryChar125Route
   '/api/health': typeof ApiHealthRoute
   '/auth/$path': typeof AuthPathRoute
+  '/categories/$category': typeof CategoriesCategoryRoute
   '/product/$slug': typeof ProductSlugRoute
   '/settings/$path': typeof SettingsPathRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/$department/{-$category}': typeof DepartmentChar123CategoryChar125Route
   '/api/health': typeof ApiHealthRoute
   '/auth/$path': typeof AuthPathRoute
+  '/categories/$category': typeof CategoriesCategoryRoute
   '/product/$slug': typeof ProductSlugRoute
   '/settings/$path': typeof SettingsPathRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
@@ -138,6 +147,7 @@ export interface FileRouteTypes {
     | '/$department/{-$category}'
     | '/api/health'
     | '/auth/$path'
+    | '/categories/$category'
     | '/product/$slug'
     | '/settings/$path'
     | '/stores/$storeId'
@@ -152,6 +162,7 @@ export interface FileRouteTypes {
     | '/$department/{-$category}'
     | '/api/health'
     | '/auth/$path'
+    | '/categories/$category'
     | '/product/$slug'
     | '/settings/$path'
     | '/stores/$storeId'
@@ -166,6 +177,7 @@ export interface FileRouteTypes {
     | '/$department/{-$category}'
     | '/api/health'
     | '/auth/$path'
+    | '/categories/$category'
     | '/product/$slug'
     | '/settings/$path'
     | '/stores/$storeId'
@@ -181,6 +193,7 @@ export interface RootRouteChildren {
   DepartmentChar123CategoryChar125Route: typeof DepartmentChar123CategoryChar125Route
   ApiHealthRoute: typeof ApiHealthRoute
   AuthPathRoute: typeof AuthPathRoute
+  CategoriesCategoryRoute: typeof CategoriesCategoryRoute
   ProductSlugRoute: typeof ProductSlugRoute
   SettingsPathRoute: typeof SettingsPathRoute
   StoresStoreIdRoute: typeof StoresStoreIdRoute
@@ -245,6 +258,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthPathRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/categories/$category': {
+      id: '/categories/$category'
+      path: '/categories/$category'
+      fullPath: '/categories/$category'
+      preLoaderRoute: typeof CategoriesCategoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/product/$slug': {
       id: '/product/$slug'
       path: '/product/$slug'
@@ -285,6 +305,7 @@ const rootRouteChildren: RootRouteChildren = {
   DepartmentChar123CategoryChar125Route: DepartmentChar123CategoryChar125Route,
   ApiHealthRoute: ApiHealthRoute,
   AuthPathRoute: AuthPathRoute,
+  CategoriesCategoryRoute: CategoriesCategoryRoute,
   ProductSlugRoute: ProductSlugRoute,
   SettingsPathRoute: SettingsPathRoute,
   StoresStoreIdRoute: StoresStoreIdRoute,

@@ -39,7 +39,7 @@ const steps = [
 	{
 		label: "Discover your find",
 		title: "Your next find, in one place.",
-		body: "Explore shoes and clothing by brand, size, colour and budget. We bring the selection together; you decide what works for you.",
+		body: "Explore shoes, clothing and accessories by brand, size, colour and budget. We bring the selection together; you decide what works for you.",
 		short: "Ready to explore",
 		tiles: 3,
 	},
@@ -66,7 +66,10 @@ function AboutPage() {
 	const currentStep = steps[active] ?? steps[0];
 	return (
 		<>
-			<Section className="brand-surface about-hero text-white" spacing="none">
+			<Section
+				className="hero-scene about-hero relative isolate overflow-hidden text-foreground"
+				spacing="none"
+			>
 				<div className="grid gap-10 py-20 md:py-28 lg:grid-cols-[1.5fr_1fr] lg:items-end lg:gap-20 lg:py-36">
 					<div>
 						<Eyebrow className="text-brand">{t("About us")}</Eyebrow>
@@ -74,23 +77,20 @@ function AboutPage() {
 							{t("Good finds. Less searching.")}
 						</h1>
 					</div>
-					<div className="max-w-lg border-l border-brand/50 pl-6 lg:mb-2">
-						<p className="type-body text-lg text-white/80 md:text-xl">
+					<div className="max-w-lg border-l border-brand/20 pl-6 lg:mb-2">
+						<p className="type-body text-lg text-muted-foreground md:text-xl">
 							{t(description)}
 						</p>
 						<a
 							href="#our-process"
-							className="mt-8 inline-flex items-center gap-4 border-white/30 border-b pb-2 text-sm font-semibold transition-colors hover:border-brand hover:text-brand focus-visible:outline-brand focus-visible:outline-2 focus-visible:outline-offset-4"
+							className="mt-8 inline-flex items-center gap-4 border-brand/30 border-b pb-2 text-sm font-semibold text-brand transition-colors hover:border-brand hover:text-brand-secondary focus-visible:outline-brand focus-visible:outline-2 focus-visible:outline-offset-4"
 						>
 							{t("See how we choose")} <span aria-hidden="true">↓</span>
 						</a>
 					</div>
 				</div>
 			</Section>
-			<Section
-				id="our-process"
-				className="scroll-mt-28 overflow-hidden bg-background"
-			>
+			<Section id="our-process" className="scroll-mt-28 overflow-hidden">
 				<SectionHeader
 					eyebrow={t("Our process")}
 					title={t("From the source to your shortlist.")}
@@ -159,8 +159,8 @@ function AboutPage() {
 					</div>
 				</div>
 			</Section>
-			<Section className="border-t bg-muted/35">
-				<div className="grid gap-8 md:grid-cols-2 md:gap-20">
+			<Section className="scroll-reveal">
+				<div className="grid gap-8 border-t border-border/60 pt-12 md:grid-cols-2 md:gap-20 md:pt-16">
 					<SectionHeader
 						eyebrow={t("You make the final call")}
 						title={t("Better informed. Your choice.")}

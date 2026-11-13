@@ -48,7 +48,7 @@ it.each(["ka", "en"] as const)(
 	"persists and reads %s on the next request",
 	async (locale) => {
 		await setLocaleFn({ data: locale });
-		expect(setCookie).toHaveBeenCalledWith("2o-locale", locale, {
+		expect(setCookie).toHaveBeenCalledWith("zipwit-locale", locale, {
 			path: "/",
 			maxAge: 31536000,
 			httpOnly: true,

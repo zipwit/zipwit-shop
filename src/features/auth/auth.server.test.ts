@@ -28,7 +28,7 @@ vi.mock("#/server/env.server", () => ({
 		BETTER_AUTH_URL: "http://localhost:3000",
 		BETTER_AUTH_SECRET: "test-secret-that-is-long-enough-for-auth",
 		RESEND_API_KEY: "test-key",
-		EMAIL_FROM: "2o <test@example.com>",
+		EMAIL_FROM: "Zipwit Shop <test@example.com>",
 	},
 }));
 
