@@ -1,5 +1,5 @@
 import type { createClient, FtSearchOptions } from "redis";
-import { getRedis } from "#/server/redis.server";
+import { getRedis, redisCommand } from "#/server/redis.server";
 
 type SearchOptions = {
 	sort?: FtSearchOptions["SORTBY"];
@@ -17,7 +17,7 @@ export const ft = {
 
 	// The same schema arguments also determine the index's version hash.
 	create: async (index: string, prefix: string, schema: string[]) =>
-		(await getRedis()).sendCommand([
+		redisCommand([
 			"FT.CREATE",
 			index,
 			"ON",

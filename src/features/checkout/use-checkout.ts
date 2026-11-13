@@ -46,6 +46,10 @@ export function useCheckout(initialCheckout: CheckoutView | null) {
 					return submit({ data: { id: action.id } });
 			}
 		},
+		onError: async (_error, action) => {
+			if (action.kind === "prepare")
+				await queryClient.invalidateQueries({ queryKey: cartQuery.queryKey });
+		},
 		onSuccess: async (next, action) => {
 			setCheckout(next);
 			if (action.kind === "prepare") {

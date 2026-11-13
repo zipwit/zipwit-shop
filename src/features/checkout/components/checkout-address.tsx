@@ -48,7 +48,7 @@ export function CheckoutAddressPicker({
 	return (
 		<>
 			{!addresses.length && (
-				<p className="rounded-xl bg-muted/60 p-4 text-sm text-muted-foreground">
+				<p className="rounded-md bg-muted/60 p-4 text-sm text-muted-foreground">
 					{t(
 						"Add a U.S. address to get started. You can use your forwarding address.",
 					)}
@@ -60,7 +60,7 @@ export function CheckoutAddressPicker({
 					<label
 						key={address.id}
 						className={cn(
-							"flex cursor-pointer gap-3 rounded-xl border p-4 transition-colors focus-within:ring-2 focus-within:ring-ring",
+							"flex cursor-pointer gap-3 rounded-md border p-4 transition-colors focus-within:ring-2 focus-within:ring-ring",
 							selectedId === address.id
 								? "border-foreground/70 bg-brand/5"
 								: "hover:bg-muted/50",
@@ -88,7 +88,12 @@ export function CheckoutAddressPicker({
 					</label>
 				))}
 			</fieldset>
-			<Button variant="outline" disabled={disabled} onClick={onAdd}>
+			<Button
+				variant="outline"
+				className="h-11 px-5"
+				disabled={disabled}
+				onClick={onAdd}
+			>
 				{t("Add address")}
 			</Button>
 			<p className="text-xs leading-relaxed text-muted-foreground">

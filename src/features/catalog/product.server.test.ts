@@ -1,7 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
 const { findFirst } = vi.hoisted(() => ({ findFirst: vi.fn() }));
-vi.mock("#/db", () => ({ db: { query: { product: { findFirst } } } }));
+vi.mock("./catalog-read.server", () => ({ getCatalogProduct: findFirst }));
+vi.mock("#/features/search/catalog-index.server", () => ({
+	ensureCatalogReady: vi.fn(),
+}));
 vi.mock("#/server/env.server", () => ({
 	env: { BETTER_AUTH_SECRET: "test-secret" },
 }));

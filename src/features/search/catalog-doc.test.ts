@@ -116,11 +116,13 @@ describe("buildCatalogDocs", () => {
 			}),
 		]);
 		expect(
-			docs.toSorted((a, b) => a.sort.price - b.sort.price).map((doc) => doc.id),
+			docs
+				.toSorted((a, b) => a.sort.price.localeCompare(b.sort.price))
+				.map((doc) => doc.id),
 		).toEqual(["a", "b"]);
 		expect(
 			docs
-				.toSorted((a, b) => a.sort.dealPrice - b.sort.dealPrice)
+				.toSorted((a, b) => a.sort.dealPrice.localeCompare(b.sort.dealPrice))
 				.map((doc) => doc.id),
 		).toEqual(["b", "a"]);
 	});
@@ -130,7 +132,9 @@ describe("buildCatalogDocs", () => {
 			product({ id: "1", name: "Zed", skus: [sku()] }),
 			product({ id: "2", name: "Alpha", skus: [sku()] }),
 		]);
-		const byName = docs.toSorted((a, b) => a.sort.name - b.sort.name);
+		const byName = docs.toSorted((a, b) =>
+			a.sort.name.localeCompare(b.sort.name),
+		);
 		expect(byName.map((d) => d.name)).toEqual(["Alpha", "Zed"]);
 	});
 });

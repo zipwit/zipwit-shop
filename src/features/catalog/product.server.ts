@@ -1,25 +1,18 @@
 import { sortSkus } from "#/data/sizes";
-import { db } from "#/db";
 import { publicStoreId } from "#/features/stores/store.server";
+import { getCatalogProduct } from "./catalog-read.server";
+import { skuAvailable } from "./catalog-record";
 
 export const findProductBySlug = async (slug: string) => {
-	const found = await db.query.product.findFirst({
-		where: { slug },
-		columns: {
-			id: true,
-			slug: true,
-			name: true,
-			brand: true,
-			description: true,
-			department: true,
-			category: true,
-			currency: true,
-			warehouse: true,
-		},
-		with: { skus: { columns: { productId: false } } },
-	});
+	const found = await getCatalogProduct(slug);
 
 	if (!found) return undefined;
+	const available = found.skus.map(({ sourceExpiresAt, ...sku }) => ({
+		...sku,
+		inStock: skuAvailable({ ...sku, sourceExpiresAt }),
+	}));
+	if (found.browseOnly && !available.some((sku) => sku.inStock))
+		return undefined;
 	return {
 		id: found.id,
 		slug: found.slug,
@@ -30,6 +23,7 @@ export const findProductBySlug = async (slug: string) => {
 		category: found.category,
 		currency: found.currency,
 		storeId: publicStoreId(found.warehouse),
-		skus: sortSkus(found.skus, found.category),
+		purchasable: !found.browseOnly,
+		skus: sortSkus(available, found.category),
 	};
 };

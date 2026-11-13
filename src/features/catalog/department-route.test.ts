@@ -21,7 +21,6 @@ vi.mock("#/features/catalog/components/catalog-listing", () => ({
 
 function routerFor(path: string, readLocale: () => Locale = () => "ka") {
 	const loader: NonNullable<typeof RootRoute.options.loader> = async () => ({
-		chatEmbedUrl: null,
 		socialProviders: [],
 	});
 	const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -53,6 +52,9 @@ describe("department route", () => {
 		["/women", "women", undefined, "ქალები"],
 		["/kids/shoes", "kids", "shoes", "ბავშვის ფეხსაცმელი"],
 		["/women/clothing", "women", "clothing", "ქალის ტანსაცმელი"],
+		["/men/accessories", "men", "accessories", "მამაკაცის აქსესუარები"],
+		["/women/accessories", "women", "accessories", "ქალის აქსესუარები"],
+		["/kids/accessories", "kids", "accessories", "ბავშვის აქსესუარები"],
 	])(
 		"loads %s with its validated scope",
 		async (path, department, category, title) => {

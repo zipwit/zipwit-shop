@@ -1,15 +1,8 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "#/db";
 import { address, user } from "#/db/schema";
-import { translate as t } from "#/i18n/translate";
+import { ensure } from "#/server/public-error";
 import { type AddressInput, MAX_ADDRESSES } from "./address.schema";
-
-/** An error whose message is meant for the shopper; anything else is hidden behind a generic one. */
-export class AddressError extends Error {}
-
-function ensure(condition: unknown, message: string): asserts condition {
-	if (!condition) throw new AddressError(message);
-}
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -81,7 +74,8 @@ export const addresses = {
 				.where(eq(address.userId, userId));
 			ensure(
 				existing.length < MAX_ADDRESSES,
-				t("You can save up to {{max}} addresses.", { max: MAX_ADDRESSES }),
+				"You can save up to {{max}} addresses.",
+				{ max: MAX_ADDRESSES },
 			);
 
 			// The first address is primary automatically.
@@ -106,7 +100,7 @@ export const addresses = {
 				.select({ isPrimary: address.isPrimary })
 				.from(address)
 				.where(mine(userId, id));
-			ensure(current, t("That address no longer exists."));
+			ensure(current, "That address no longer exists.");
 
 			// An account always keeps a primary address, so unticking it here does
 			// nothing; picking another address as primary is how it moves.
@@ -128,7 +122,7 @@ export const addresses = {
 				.select({ isPrimary: address.isPrimary })
 				.from(address)
 				.where(mine(userId, id));
-			ensure(target, t("That address no longer exists."));
+			ensure(target, "That address no longer exists.");
 			if (target.isPrimary) return;
 
 			await demotePrimary(tx, userId);

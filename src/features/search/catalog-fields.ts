@@ -7,6 +7,8 @@
  */
 const FIELDS = {
 	q: { path: "$.searchText", type: "TEXT" },
+	checkedAt: { path: "$.checkedAt", type: "NUMERIC" },
+	updatedAt: { path: "$.updatedAt", type: "NUMERIC" },
 	store: { path: "$.storeId", type: "TAG" },
 	brand: { path: "$.brand", type: "TAG" },
 	department: { path: "$.department", type: "TAG" },
@@ -16,13 +18,18 @@ const FIELDS = {
 	price: { path: "$.price", type: "NUMERIC" },
 	dealPrice: { path: "$.deal.price", type: "NUMERIC" },
 	discount: { path: "$.discount", type: "NUMERIC" },
-	sortName: { path: "$.sort.name", type: "NUMERIC" },
-	sortPrice: { path: "$.sort.price", type: "NUMERIC" },
-	sortDealPrice: { path: "$.sort.dealPrice", type: "NUMERIC" },
-	sortDiscount: { path: "$.sort.discount", type: "NUMERIC" },
+	sortName: { path: "$.sort.name", type: "TAG", sortable: true },
+	sortPrice: { path: "$.sort.price", type: "TAG", sortable: true },
+	sortDealPrice: { path: "$.sort.dealPrice", type: "TAG", sortable: true },
+	sortDiscount: { path: "$.sort.discount", type: "TAG", sortable: true },
 } as const satisfies Record<
 	string,
-	{ path: string; type: "TEXT" | "TAG" | "NUMERIC"; separator?: string }
+	{
+		path: string;
+		type: "TEXT" | "TAG" | "NUMERIC";
+		separator?: string;
+		sortable?: boolean;
+	}
 >;
 
 type FieldName = keyof typeof FIELDS;
@@ -39,4 +46,5 @@ export const schemaArgs = () =>
 		name,
 		field.type,
 		...("separator" in field ? ["SEPARATOR", field.separator] : []),
+		...("sortable" in field ? ["SORTABLE"] : []),
 	]);

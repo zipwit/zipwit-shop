@@ -1,14 +1,13 @@
 import { getCookie, setCookie } from "@tanstack/react-start/server";
-import { and, eq, inArray, sql } from "drizzle-orm";
 import { compact, keyBy } from "es-toolkit";
 import { z } from "zod";
-import { db } from "#/db";
-import { product, skus } from "#/db/schema";
+import { findCatalogSkus } from "#/features/catalog/catalog-read.server";
 import { getGelPerUsd } from "#/features/checkout/exchange-rate.server";
 import { unitPriceUsd } from "#/features/shipping/money.server";
 import { warehouseShipping } from "#/features/shipping/shipping-config.server";
+import { PublicError } from "#/server/public-error";
 import { getRedis } from "#/server/redis.server";
-import { type CartItem, MAX_QUANTITY } from "./cart";
+import { type CartSnapshot, unavailableCartEntries } from "./cart";
 import { CART_TTL_SECONDS, createCartStore } from "./cart-store.server";
 
 const CART_COOKIE = "cartId";
@@ -29,45 +28,25 @@ const cartKey = () => {
 	return keyFor(id);
 };
 
-/** In-stock SKUs, already shaped like cart lines (minus the quantity). */
-const findAvailableSkus = (ids: string[]) =>
-	db
-		.select({
-			id: skus.id,
-			name: sql<string>`${product.name} || ' (' || ${skus.color} || ', ' || ${skus.size} || ')'`,
-			currency: product.currency,
-			warehouse: product.warehouse,
-			image: skus.imageUrl,
-			price: skus.price, // minor units
-		})
-		.from(skus)
-		.innerJoin(product, eq(skus.productId, product.id))
-		.where(and(inArray(skus.id, ids), eq(skus.inStock, true)));
-
-const store = async () => createCartStore(await getRedis(), findAvailableSkus);
-
-async function getCart(strict = false): Promise<CartItem[]> {
+const store = async () => createCartStore(await getRedis(), findCatalogSkus);
+async function getCart(strict = false): Promise<CartSnapshot> {
 	const id = cookieId();
 	const entries = id
 		? Object.entries(await (await getRedis()).hGetAll(keyFor(id)))
 		: [];
-	if (entries.length === 0) return [];
+	if (entries.length === 0) return { items: [], unavailableIds: [] };
 
 	const available = keyBy(
-		await findAvailableSkus(entries.map(([field]) => field)),
+		await findCatalogSkus(entries.map(([field]) => field)),
 		(sku) => sku.id,
 	);
-	if (
-		strict &&
-		entries.some(
-			([id, quantity]) =>
-				!available[id] ||
-				!Number.isInteger(Number(quantity)) ||
-				Number(quantity) < 1 ||
-				Number(quantity) > MAX_QUANTITY,
-		)
-	) {
-		throw new Error(
+	const unavailableIds = unavailableCartEntries(
+		entries,
+		new Set(Object.keys(available)),
+	).map(([id]) => id);
+	const unavailable = new Set(unavailableIds);
+	if (strict && unavailableIds.length) {
+		throw new PublicError(
 			"Some cart items are no longer available. Please review your cart.",
 		);
 	}
@@ -76,10 +55,10 @@ async function getCart(strict = false): Promise<CartItem[]> {
 		!strict && Object.values(available).some((sku) => sku.currency === "GEL")
 			? await getGelPerUsd()
 			: null;
-	return compact(
+	const items = compact(
 		entries.map(([field, value]) => {
 			const sku = available[String(field)];
-			if (!sku) return undefined;
+			if (!sku || unavailable.has(field)) return undefined;
 			const { warehouse, ...line } = sku;
 			return {
 				...line,
@@ -95,11 +74,18 @@ async function getCart(strict = false): Promise<CartItem[]> {
 			};
 		}),
 	);
+	return { items, unavailableIds };
 }
 
 export const cart = {
-	get: getCart,
-	getForCheckout: () => getCart(true),
+	get: async () => (await getCart()).items,
+	getSnapshot: () => getCart(),
+	getForCheckout: async () => (await getCart(true)).items,
+
+	async removeUnavailable() {
+		const id = cookieId();
+		if (id) await (await store()).removeUnavailable(keyFor(id));
+	},
 
 	async removePurchased(items: { id: string; quantity: number }[]) {
 		const id = cookieId();

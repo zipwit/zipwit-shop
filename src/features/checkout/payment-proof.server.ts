@@ -1,3 +1,4 @@
+import { PublicError } from "#/server/public-error";
 import { MAX_PROOF_BYTES, PROOF_TYPES } from "./checkout";
 
 export async function readPaymentProof(file: File) {
@@ -6,7 +7,7 @@ export async function readPaymentProof(file: File) {
 		file.size > MAX_PROOF_BYTES ||
 		!PROOF_TYPES.includes(file.type)
 	)
-		throw new Error("Use a PNG, JPEG or WebP image up to 2 MB.");
+		throw new PublicError("Use a PNG, JPEG or WebP image up to 2 MB.");
 	const bytes = Buffer.from(await file.arrayBuffer());
 	const png = bytes
 		.subarray(0, 8)
@@ -23,6 +24,6 @@ export async function readPaymentProof(file: File) {
 				? "image/webp"
 				: null;
 	if (type !== file.type || bytes.length < 32)
-		throw new Error("Use a PNG, JPEG or WebP image up to 2 MB.");
+		throw new PublicError("Use a PNG, JPEG or WebP image up to 2 MB.");
 	return { base64: bytes.toString("base64"), type };
 }

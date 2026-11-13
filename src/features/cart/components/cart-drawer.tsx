@@ -22,14 +22,23 @@ import { ShipmentDetails } from "#/features/shipping/shipment-details";
 import { groupShipments } from "#/features/shipping/shipping";
 import { useTranslation } from "#/i18n/translate";
 import { usePriceFormatter } from "#/lib/price";
+import { CartAvailabilityNotice } from "./cart-availability-notice";
 
 export function CartDrawer() {
 	const { formatPrice } = usePriceFormatter();
 	const t = useTranslation();
 	const open = useCartDrawerOpen();
 	const updating = useCartUpdating();
-	const { items, subtotal, currency, isPending, isError, isFetching, refetch } =
-		useCart();
+	const {
+		items,
+		unavailableIds,
+		subtotal,
+		currency,
+		isPending,
+		isError,
+		isFetching,
+		refetch,
+	} = useCart();
 
 	return (
 		<Sheet open={open} onOpenChange={cartDrawer.actions.set}>
@@ -46,6 +55,11 @@ export function CartDrawer() {
 					</p>
 				</SheetHeader>
 
+				{!isPending && !isError && unavailableIds.length > 0 && (
+					<div className="px-5 pb-5 sm:px-6">
+						<CartAvailabilityNotice count={unavailableIds.length} />
+					</div>
+				)}
 				{isPending ? (
 					<p role="status" className="p-4 text-muted-foreground">
 						{t("Loading your cart…")}

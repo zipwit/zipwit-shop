@@ -9,7 +9,6 @@ import {
 	PopoverTrigger,
 } from "#/components/ui/popover";
 import { useTranslation } from "#/i18n/translate";
-import { cn } from "#/lib/utils";
 
 type FilterPopoverProps = {
 	label: string;
@@ -32,7 +31,8 @@ export function FilterPopover({
 		<Popover>
 			<PopoverTrigger
 				render={<Button variant="outline" size="sm" />}
-				className={cn("h-10 rounded-lg px-4", active && "border-foreground/40")}
+				className="filter-trigger h-10 px-4"
+				data-active={active || undefined}
 			>
 				{trigger}
 				<HugeiconsIcon icon={ArrowDown01Icon} size={14} />

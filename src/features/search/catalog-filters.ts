@@ -8,14 +8,14 @@ export const CATALOG_PAGE_SIZE = 48;
 /** Products in the home page's drops row. */
 export const HOME_DEALS_COUNT = 12;
 
-const sorts = [
+export const catalogSorts = [
 	"relevance",
 	"name",
 	"price-asc",
 	"price-desc",
 	"discount",
 ] as const;
-export type CatalogSort = (typeof sorts)[number];
+export type CatalogSort = (typeof catalogSorts)[number];
 
 export const sortLabels = {
 	relevance: "Best match",
@@ -43,7 +43,7 @@ export const catalogFiltersSchema = z.object({
 	minPrice: money.optional().catch(undefined),
 	maxPrice: money.optional().catch(undefined),
 	sale: z.boolean().default(false).catch(false),
-	sort: z.enum(sorts).optional().catch(undefined),
+	sort: z.enum(catalogSorts).optional().catch(undefined),
 });
 export type CatalogFilters = z.infer<typeof catalogFiltersSchema>;
 

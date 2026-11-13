@@ -11,6 +11,11 @@ describe("formatCheckedAt", () => {
 
 describe("priceCheckNote", () => {
 	const now = new Date("2026-10-23T09:00:00Z");
+	it("uses a stable Georgian date without a render-time clock", () => {
+		expect(priceCheckNote("2026-11-13T19:56:00Z")).toBe(
+			"ფასები ბოლოს შემოწმდა 13 ნოე, 23:56 საათზე.",
+		);
+	});
 	it("can still render English when requested", () => {
 		expect(priceCheckNote("2026-10-22T04:05:00Z", now, "en")).toBe(
 			"Prices last checked on 22 Oct at 08:05.",

@@ -17,7 +17,6 @@ beforeEach(() => vi.resetAllMocks());
 
 function routerFor(slug: string) {
 	const loader: NonNullable<typeof RootRoute.options.loader> = async () => ({
-		chatEmbedUrl: null,
 		socialProviders: [],
 	});
 	const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({

@@ -1,11 +1,19 @@
-import { invariant } from "es-toolkit";
+import { ensure, PublicError } from "#/server/public-error";
 import type { getRedis } from "#/server/redis.server";
-import { hasCurrencyConflict, MAX_CART_LINES, MAX_QUANTITY } from "./cart";
+import {
+	hasCurrencyConflict,
+	MAX_CART_LINES,
+	MAX_QUANTITY,
+	unavailableCartEntries,
+} from "./cart";
 
 export const CART_TTL_SECONDS = 30 * 24 * 60 * 60;
 const MAX_ADD_ATTEMPTS = 8;
 
-type CartRedis = Pick<Awaited<ReturnType<typeof getRedis>>, "hKeys" | "eval">;
+type CartRedis = Pick<
+	Awaited<ReturnType<typeof getRedis>>,
+	"hKeys" | "hGetAll" | "eval"
+>;
 type FindAvailableSkus = (
 	ids: string[],
 ) => Promise<{ id: string; currency: string }[]>;
@@ -63,10 +71,10 @@ export function createCartStore(redis: CartRedis, findSkus: FindAvailableSkus) {
 				const ids = await redis.hKeys(key);
 				const available = await findSkus([...new Set([...ids, skuId])]);
 				const sku = available.find((item) => item.id === skuId);
-				invariant(sku, "Unavailable");
-				invariant(
+				ensure(sku, "This item is no longer available.");
+				ensure(
 					!hasCurrencyConflict(available, sku.currency),
-					"A cart can only hold one currency",
+					"A cart can only hold one currency.",
 				);
 				const result = await redis.eval(addScript, {
 					keys: [key],
@@ -84,26 +92,51 @@ export function createCartStore(redis: CartRedis, findSkus: FindAvailableSkus) {
 					case "changed":
 						continue;
 					case "full":
-						throw new Error("Cart is full");
+						throw new PublicError(
+							"Your cart is full. Remove an item before adding another.",
+						);
 					case "maximum":
-						throw new Error("Maximum quantity reached");
+						throw new PublicError("Maximum quantity reached.");
 					default:
-						throw new Error("Invalid cart quantity");
+						throw new PublicError("Invalid cart quantity.");
 				}
 			}
-			throw new Error("Your cart changed. Please try again.");
+			throw new PublicError("Your cart changed. Please try again.");
 		},
 
 		/** A stale quantity request cannot recreate a line removed by another client. */
 		async setQuantity(key: string, skuId: string, quantity: number) {
-			invariant(
+			ensure(
 				Number.isInteger(quantity) && quantity >= 0 && quantity <= MAX_QUANTITY,
-				"Invalid cart quantity",
+				"Invalid cart quantity.",
 			);
 			await redis.eval(setQuantityScript, {
 				keys: [key],
 				arguments: [skuId, String(quantity), String(CART_TTL_SECONDS)],
 			});
+		},
+
+		/** Recheck first; compare quantities atomically to preserve concurrent edits. */
+		async removeUnavailable(key: string) {
+			const entries = Object.entries(await redis.hGetAll(key));
+			if (!entries.length) return;
+			const available = await findSkus(entries.map(([id]) => id));
+			const stale = unavailableCartEntries(
+				entries,
+				new Set(available.map((sku) => sku.id)),
+			);
+			if (!stale.length) return;
+			await redis.eval(
+				`
+for i = 1, #ARGV, 2 do
+ if redis.call('HGET', KEYS[1], ARGV[i]) == ARGV[i + 1] then
+  redis.call('HDEL', KEYS[1], ARGV[i])
+ end
+end
+return 1
+`,
+				{ keys: [key], arguments: stale.flat() },
+			);
 		},
 
 		/** Subtract purchased quantities without discarding additions from another tab. */

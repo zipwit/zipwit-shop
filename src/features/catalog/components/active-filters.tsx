@@ -5,13 +5,13 @@ import {
 	type CatalogFilters,
 	DEFAULT_FILTERS,
 } from "#/features/search/catalog-filters";
+import { colorLabel } from "#/i18n/color-label";
+import { type Locale, useLocale } from "#/i18n/locale";
+import { sizeLabel } from "#/i18n/size-label";
 import { useTranslation } from "#/i18n/translate";
 import { usePriceFormatter } from "#/lib/price";
 
 type Chip = { key: string; label: string; clear: Partial<CatalogFilters> };
-
-const capitalize = (text: string) =>
-	text.charAt(0).toUpperCase() + text.slice(1);
 
 function priceLabel(
 	{ minPrice, maxPrice }: CatalogFilters,
@@ -38,6 +38,7 @@ function chipsFor(
 	formatPriceCompact: ReturnType<
 		typeof usePriceFormatter
 	>["formatPriceCompact"],
+	locale: Locale,
 ): Chip[] {
 	const chips: Chip[] = [];
 
@@ -54,14 +55,14 @@ function chipsFor(
 	for (const size of filters.sizes) {
 		chips.push({
 			key: `size:${size}`,
-			label: t("Size {{size}}", { size: size.toUpperCase() }),
+			label: t("Size {{size}}", { size: sizeLabel(size, locale) }),
 			clear: { sizes: filters.sizes.filter((s) => s !== size) },
 		});
 	}
 	for (const color of filters.colors) {
 		chips.push({
 			key: `color:${color}`,
-			label: capitalize(color),
+			label: colorLabel(color, locale),
 			clear: { colors: filters.colors.filter((c) => c !== color) },
 		});
 	}
@@ -93,8 +94,9 @@ export function ActiveFilters({
 	onChange,
 }: ActiveFiltersProps) {
 	const t = useTranslation();
+	const locale = useLocale();
 	const { formatPriceCompact } = usePriceFormatter();
-	const chips = chipsFor(filters, showSale, t, formatPriceCompact);
+	const chips = chipsFor(filters, showSale, t, formatPriceCompact, locale);
 	if (chips.length === 0) return null;
 
 	return (

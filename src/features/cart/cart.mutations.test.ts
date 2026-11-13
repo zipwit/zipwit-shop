@@ -40,16 +40,19 @@ it("serializes cart writes across components and refreshes after the last one", 
 
 it("continues the queue after a failed write without restoring an old cart", async () => {
 	const client = new QueryClient();
-	const saved = [
-		{
-			id: "sku",
-			name: "Shoes",
-			price: 5000,
-			currency: "GEL",
-			image: null,
-			quantity: 2,
-		},
-	];
+	const saved = {
+		unavailableIds: [],
+		items: [
+			{
+				id: "sku",
+				name: "Shoes",
+				price: 5000,
+				currency: "GEL",
+				image: null,
+				quantity: 2,
+			},
+		],
+	};
 	client.setQueryData(cartQuery.queryKey, saved);
 	const failure = new Error("Unavailable");
 	const first = client.getMutationCache().build(client, {

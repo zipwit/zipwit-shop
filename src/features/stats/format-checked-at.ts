@@ -1,14 +1,8 @@
 import { site } from "#/data/site";
-import { DEFAULT_LOCALE, type Locale, languageTags } from "#/i18n/locale";
+import { formatStoreDate, formatStoreTime } from "#/i18n/format";
+import { DEFAULT_LOCALE, type Locale } from "#/i18n/locale";
 import { translate } from "#/i18n/translate";
 
-// Pinned zone and 24-hour clock, so server and browser render the same time.
-const timeFormat = new Intl.DateTimeFormat("ka-GE", {
-	hour: "2-digit",
-	minute: "2-digit",
-	hourCycle: "h23",
-	timeZone: site.timezone,
-});
 const dayKeyFormat = new Intl.DateTimeFormat("en-CA", {
 	year: "numeric",
 	month: "2-digit",
@@ -17,13 +11,12 @@ const dayKeyFormat = new Intl.DateTimeFormat("en-CA", {
 });
 
 /** `"08:00"`, in the store's own time zone, from an ISO timestamp. */
-export const formatCheckedAt = (iso: string) =>
-	timeFormat.format(new Date(iso));
+export const formatCheckedAt = formatStoreTime;
 
-/** Reports the actual last check, even if the importer missed today. */
+/** Absolute dates by default keep SSR stable across midnight; relative dates require a shared clock. */
 export function priceCheckNote(
 	checkedAt: string | null,
-	now = new Date(),
+	now: Date | undefined = undefined,
 	locale: Locale = DEFAULT_LOCALE,
 ) {
 	if (!checkedAt) {
@@ -35,21 +28,14 @@ export function priceCheckNote(
 	}
 	const at = new Date(checkedAt);
 	const time = formatCheckedAt(checkedAt);
-	if (dayKeyFormat.format(at) === dayKeyFormat.format(now)) {
+	if (now && dayKeyFormat.format(at) === dayKeyFormat.format(now)) {
 		return translate(
 			"Prices last checked today at {{time}}.",
 			{ time },
 			locale,
 		);
 	}
-	const date = new Intl.DateTimeFormat(
-		locale === "en" ? "en-GB" : languageTags[locale],
-		{
-			day: "numeric",
-			month: "short",
-			timeZone: site.timezone,
-		},
-	).format(at);
+	const date = formatStoreDate(checkedAt, locale);
 	return translate(
 		"Prices last checked on {{date}} at {{time}}.",
 		{ date, time },

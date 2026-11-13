@@ -1,7 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-	requireUserId: vi.fn(),
 	getSession: vi.fn(),
 	getCheckout: vi.fn(),
 	prepare: vi.fn(),
@@ -11,32 +10,14 @@ const mocks = vi.hoisted(() => ({
 	header: vi.fn(),
 	pricing: vi.fn(),
 }));
-vi.mock("@tanstack/react-start", () => ({
-	createServerFn: () => {
-		let parse = (value: unknown): unknown => value;
-		const builder = {
-			validator: (schema: { parse: typeof parse } | typeof parse) => {
-				parse =
-					typeof schema === "function"
-						? schema
-						: (value) => schema.parse(value);
-				return builder;
-			},
-			handler:
-				(handler: (context: { data: unknown }) => unknown) =>
-				async (options?: { data: unknown }) =>
-					handler({ data: parse(options?.data) }),
-		};
-		return builder;
-	},
+vi.mock("@tanstack/react-start", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@tanstack/react-start")>()),
+	createServerFn: (await import("#/test/server-function")).serverFunctionStub,
 }));
 vi.mock("@tanstack/react-start/server", () => ({
 	getCookie: () => "en",
 	getRequestHeaders: () => new Headers(),
 	setResponseHeader: mocks.header,
-}));
-vi.mock("#/features/auth/session.server", () => ({
-	requireUserId: mocks.requireUserId,
 }));
 vi.mock("#/features/auth/auth.server", () => ({
 	auth: { api: { getSession: mocks.getSession } },
@@ -46,7 +27,6 @@ vi.mock("#/features/addresses/address.server", () => ({
 }));
 vi.mock("./checkout-config.server", () => ({ checkoutPricing: mocks.pricing }));
 vi.mock("./checkout.server", () => ({
-	CheckoutError: class extends Error {},
 	getCheckout: mocks.getCheckout,
 	prepareCheckout: mocks.prepare,
 	uploadProof: mocks.upload,
@@ -58,14 +38,13 @@ const id = "00000000-0000-4000-8000-000000000001";
 
 beforeEach(() => {
 	vi.resetAllMocks();
-	mocks.requireUserId.mockResolvedValue("signed-in-user");
 	mocks.getSession.mockResolvedValue({ user: { id: "signed-in-user" } });
 	mocks.list.mockResolvedValue([]);
 	mocks.pricing.mockResolvedValue({});
 });
 
 it("rejects anonymous prepare, upload and submit requests at the server boundary", async () => {
-	mocks.requireUserId.mockRejectedValue(new Error("Sign in required"));
+	mocks.getSession.mockResolvedValue(null);
 	const file = new FormData();
 	file.set("id", id);
 	file.set("file", new File(["test"], "proof.png", { type: "image/png" }));
@@ -74,7 +53,7 @@ it("rejects anonymous prepare, upload and submit requests at the server boundary
 		() => uploadProofFn({ data: file }),
 		() => submitCheckoutFn({ data: { id } }),
 	])
-		await expect(request()).rejects.toThrow("Sign in required");
+		await expect(request()).rejects.toThrow("Please sign in to continue.");
 	expect(mocks.prepare).not.toHaveBeenCalled();
 	expect(mocks.upload).not.toHaveBeenCalled();
 	expect(mocks.submit).not.toHaveBeenCalled();
@@ -140,4 +119,33 @@ it("does not load an anonymous visitor's requested checkout", async () => {
 it("rejects malformed input before touching order storage", async () => {
 	await expect(submitCheckoutFn({ data: { id: "invalid" } })).rejects.toThrow();
 	expect(mocks.submit).not.toHaveBeenCalled();
+});
+
+it("resolves the session only once when loading a signed-in checkout", async () => {
+	await checkoutPageFn({ data: {} });
+	expect(mocks.getSession).toHaveBeenCalledOnce();
+});
+it("hides infrastructure errors but keeps safe checkout errors", async () => {
+	const { PublicError } = await import("#/server/public-error");
+	const log = vi.spyOn(console, "error").mockImplementation(() => {});
+	try {
+		mocks.submit.mockRejectedValueOnce(new Error("database password and SQL"));
+		await expect(submitCheckoutFn({ data: { id } })).rejects.toThrow(
+			"Something went wrong. Please try again.",
+		);
+		mocks.submit.mockRejectedValueOnce(new PublicError("Checkout not found."));
+		await expect(submitCheckoutFn({ data: { id } })).rejects.toThrow(
+			"Checkout not found.",
+		);
+		expect(log).toHaveBeenCalledExactlyOnceWith("Private request failed", {
+			reference: expect.any(String),
+			code: "UNKNOWN",
+		});
+		expect(mocks.header).toHaveBeenCalledWith(
+			"X-Request-Id",
+			expect.any(String),
+		);
+	} finally {
+		log.mockRestore();
+	}
 });

@@ -24,7 +24,6 @@ vi.mock("#/features/catalog/components/catalog-listing", () => ({
 
 function routerFor(path: string) {
 	const loader: NonNullable<typeof RootRoute.options.loader> = async () => ({
-		chatEmbedUrl: null,
 		socialProviders: [],
 	});
 	const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({

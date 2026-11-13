@@ -71,5 +71,103 @@
 				"recommended": true
 			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": [
+				"src/components/**",
+				"src/hooks/**",
+				"src/features/*/components/**",
+				"src/features/*/use-*.ts"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": [
+											"**/*.server",
+											"**/*.server.*",
+											"#/db",
+											"#/db/**",
+											"#/server/**"
+										],
+										"message": "UI uses feature query/mutation APIs. Keep storage and server modules behind server functions."
+									},
+									{
+										"group": [
+											"lucide*",
+											"@lucide/**",
+											"react-icons",
+											"react-icons/**",
+											"@heroicons/**",
+											"@radix-ui/react-icons",
+											"@phosphor-icons/**",
+											"phosphor-react",
+											"@tabler/icons*",
+											"@fortawesome/**",
+											"@ant-design/icons*",
+											"@mui/icons-material",
+											"@mui/icons-material/**"
+										],
+										"message": "Use @hugeicons/core-free-icons with @hugeicons/react; Hugeicons is the project icon library."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"src/features/catalog/*.server.ts",
+				"src/features/search/*.server.ts"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": [
+											"#/db",
+											"#/db/**",
+											"drizzle-orm",
+											"drizzle-orm/**",
+											"pg"
+										],
+										"message": "Redis owns the live catalog; PostgreSQL belongs to accounts and transactions."
+									},
+									{
+										"group": [
+											"lucide*",
+											"@lucide/**",
+											"react-icons",
+											"react-icons/**",
+											"@heroicons/**",
+											"@radix-ui/react-icons",
+											"@phosphor-icons/**",
+											"phosphor-react",
+											"@tabler/icons*",
+											"@fortawesome/**",
+											"@ant-design/icons*",
+											"@mui/icons-material",
+											"@mui/icons-material/**"
+										],
+										"message": "Use @hugeicons/core-free-icons with @hugeicons/react; Hugeicons is the project icon library."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

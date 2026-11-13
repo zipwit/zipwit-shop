@@ -29,7 +29,9 @@ export function OptionGroup({
 }: OptionGroupProps) {
 	return (
 		<FieldSet>
-			<FieldLegend variant="label">{legend}</FieldLegend>
+			<FieldLegend variant="label" className="font-semibold text-foreground">
+				{legend}
+			</FieldLegend>
 			<ToggleGroup
 				variant="outline"
 				spacing={2}
@@ -44,7 +46,7 @@ export function OptionGroup({
 						disabled={o.soldOut}
 						aria-label={o.ariaLabel}
 						className={cn(
-							"min-h-11 min-w-12 rounded-lg px-4",
+							"product-option min-h-12 min-w-13 px-4 font-semibold",
 							o.soldOut && "line-through",
 						)}
 					>

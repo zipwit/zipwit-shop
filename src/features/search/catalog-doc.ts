@@ -1,13 +1,18 @@
 import type { Category, Department } from "#/data/catalog";
 
-/** Bigger than any product count, so `value * SEQ + seq` stays unique and below 2^53. */
-const SEQ = 1_000_000;
+/** Stable sort values support individual catalog writes without reranking all products. */
+const numericSort = (value: number, id: string) =>
+	`${String(value).padStart(12, "0")}:${id}`;
 
 /**
  * One indexed product. Only in-stock SKUs are summarised, so a product with
  * nothing in stock never enters the index (matching the old listings).
  */
 export type CatalogDoc = {
+	checkedAt?: number;
+	updatedAt?: number;
+	/** Expire at the earliest supplier check expiry; a subsequent catalog write or search:sync rebuilds remaining variants. */
+	expiresAt?: number;
 	id: string;
 	storeId: string;
 	slug: string;
@@ -36,13 +41,14 @@ export type CatalogDoc = {
 		imageUrl: string | null;
 	} | null;
 	/**
-	 * Sort keys with a per-product sequence mixed in. A plain SORTBY with ties
-	 * would let offset pages overlap or skip; these are unique, so they can't.
+	 * Stable sort strings include the product ID as a unique tie-breaker.
+	 * Individual price updates do not require reranking other catalog products.
 	 */
-	sort: { name: number; price: number; dealPrice: number; discount: number };
+	sort: { name: string; price: string; dealPrice: string; discount: string };
 };
 
 type SourceSku = {
+	sourceExpiresAt?: Date | null;
 	color: string;
 	size: string;
 	price: number;
@@ -52,6 +58,8 @@ type SourceSku = {
 };
 
 export type SourceProduct = {
+	lastSeenAt?: Date;
+	updatedAt?: Date;
 	id: string;
 	storeId: string;
 	slug: string;
@@ -74,17 +82,9 @@ const tagList = (values: string[]) =>
 export function buildCatalogDocs(products: SourceProduct[]): CatalogDoc[] {
 	const stocked = products.filter((p) => p.skus.length > 0);
 
-	const nameRank = new Map(
-		stocked
-			.toSorted(
-				(a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
-			)
-			.map((p, rank) => [p.id, rank]),
-	);
-
 	return stocked
 		.toSorted((a, b) => a.id.localeCompare(b.id))
-		.map((p, seq): CatalogDoc => {
+		.map((p): CatalogDoc => {
 			const cheapest = p.skus.reduce((a, b) => (b.price < a.price ? b : a));
 			const deepest = p.skus.reduce((a, b) =>
 				b.discount > a.discount ? b : a,
@@ -99,6 +99,17 @@ export function buildCatalogDocs(products: SourceProduct[]): CatalogDoc[] {
 					: null;
 
 			return {
+				checkedAt: p.lastSeenAt?.getTime(),
+				updatedAt: p.updatedAt?.getTime(),
+				expiresAt: p.skus.some((s) => s.sourceExpiresAt)
+					? Math.floor(
+							Math.min(
+								...p.skus.flatMap((s) =>
+									s.sourceExpiresAt ? [s.sourceExpiresAt.getTime()] : [],
+								),
+							) / 1000,
+						)
+					: undefined,
 				id: p.id,
 				storeId: p.storeId,
 				slug: p.slug,
@@ -116,10 +127,10 @@ export function buildCatalogDocs(products: SourceProduct[]): CatalogDoc[] {
 				discount: deepest.discount,
 				deal,
 				sort: {
-					name: nameRank.get(p.id) ?? 0,
-					price: cheapest.price * SEQ + seq,
-					dealPrice: (deal?.price ?? cheapest.price) * SEQ + seq,
-					discount: deepest.discount * SEQ + seq,
+					name: `${p.name.toLowerCase()}:${p.id}`,
+					price: numericSort(cheapest.price, p.id),
+					dealPrice: numericSort(deal?.price ?? cheapest.price, p.id),
+					discount: numericSort(deepest.discount, p.id),
 				},
 			};
 		});

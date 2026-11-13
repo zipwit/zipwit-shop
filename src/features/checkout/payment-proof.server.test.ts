@@ -29,3 +29,12 @@ describe("private payment proof validation", () => {
 		}
 	});
 });
+
+it("does not mislabel a file read failure as an invalid image", async () => {
+	const file = new File([png], "receipt.png", { type: "image/png" });
+	const failure = new Error("read failed");
+	file.arrayBuffer = async () => {
+		throw failure;
+	};
+	await expect(readPaymentProof(file)).rejects.toBe(failure);
+});

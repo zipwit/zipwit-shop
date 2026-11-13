@@ -59,7 +59,7 @@ export function SearchBox({ value, onCommit, className }: SearchBoxProps) {
 					<InputGroupInput
 						type="search"
 						autoComplete="off"
-						placeholder={t("Search shoes and clothing")}
+						placeholder={t("Search all products")}
 						aria-label={t("Search products")}
 						className="[&::-webkit-search-cancel-button]:hidden"
 						value={draft}

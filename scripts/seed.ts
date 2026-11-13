@@ -1,29 +1,35 @@
 /**
- * Fills a development database with fake products and SKUs.
+ * Fills the development Redis catalog with fake products and SKUs.
  *
  *   pnpm db:seed
  *
  * Every seeded product lives under a reserved `.example` warehouse domain, so
  * re-running replaces the previous seed and never touches real imported data.
  */
-import { like } from "drizzle-orm";
 import {
 	type Category,
 	categorySlugs,
 	type Department,
 	departmentSlugs,
 } from "#/data/catalog";
-import { db } from "#/db";
-import { product, skus } from "#/db/schema";
+import { site } from "#/data/site";
+import {
+	type CatalogRecord,
+	catalogRecordSchema,
+} from "#/features/catalog/catalog-record";
+import {
+	deleteCatalogProduct,
+	putCatalogProduct,
+} from "#/features/catalog/catalog-store.server";
 import { syncCatalogIndex } from "#/features/search/catalog-index.server";
 import { refreshStats } from "#/features/stats/stats.server";
+import { getRedis, scanRedisKeys } from "#/server/redis.server";
 
 if (process.env.NODE_ENV === "production") {
 	console.error("Refusing to seed a production database.");
 	process.exit(1);
 }
 
-const SEED_URL_PATTERN = "https://%.example/%";
 const PRODUCTS_PER_GROUP = 8;
 
 const warehouses = [
@@ -56,6 +62,16 @@ const models: Record<Category, string[]> = {
 		"Windbreaker",
 		"Fleece Crew",
 	],
+	accessories: [
+		"Everyday Cap",
+		"Classic Beanie",
+		"Chain Necklace",
+		"Crossbody Bag",
+		"Crew Socks",
+		"Canvas Belt",
+		"Sport Backpack",
+		"Everyday Sunglasses",
+	],
 };
 
 const colors = [
@@ -78,12 +94,18 @@ const sizes: Record<Category, Record<Department, string[]>> = {
 		women: ["xs", "s", "m", "l", "xl"],
 		kids: ["xs", "s", "m", "l"],
 	},
+	accessories: {
+		men: ["one-size"],
+		women: ["one-size"],
+		kids: ["one-size"],
+	},
 };
 
 /** Price range in tetri (minor units of the GEL). */
 const priceRange: Record<Category, [number, number]> = {
 	shoes: [8_000, 40_000],
 	clothing: [3_000, 20_000],
+	accessories: [1_000, 12_000],
 };
 
 /** Small deterministic PRNG so every run produces the same catalogue. */
@@ -117,8 +139,8 @@ function placeholderImage(label: string, hex: string) {
 	return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-type ProductRow = typeof product.$inferInsert;
-type SkuRow = Omit<typeof skus.$inferInsert, "productId">;
+type ProductRow = Omit<CatalogRecord, "skus">;
+type SkuRow = CatalogRecord["skus"][number];
 
 function buildCatalogue() {
 	const rows: { product: ProductRow; skus: SkuRow[] }[] = [];
@@ -146,6 +168,11 @@ function buildCatalogue() {
 
 				const skuRows = productColors.flatMap((color) =>
 					productSizes.map((size) => ({
+						id: crypto.randomUUID(),
+						sourceExpiresAt: null,
+						discount: onSale
+							? Math.round(((originalPrice - price) * 100) / originalPrice)
+							: 0,
 						color: color.name,
 						size,
 						imageUrl: placeholderImage(name, color.hex),
@@ -161,11 +188,16 @@ function buildCatalogue() {
 
 				rows.push({
 					product: {
-						url: `https://www.${warehouse}/p/${slug}`,
+						id: crypto.randomUUID(),
+						warehouse,
+						currency: site.currency,
+						browseOnly: false,
+						lastSeenAt: new Date().toISOString(),
+						updatedAt: new Date().toISOString(),
 						slug,
 						name,
 						brand,
-						description: `${name}: a ${category === "shoes" ? "pair of shoes" : "piece of clothing"} for ${department === "kids" ? "kids" : department}. Demo data.`,
+						description: `${name}: ${category} for ${department}. Demo data.`,
 						department,
 						category,
 					},
@@ -180,30 +212,11 @@ function buildCatalogue() {
 
 async function seed() {
 	const catalogue = buildCatalogue();
-
-	await db.transaction(async (tx) => {
-		await tx.delete(product).where(like(product.url, SEED_URL_PATTERN));
-
-		const inserted = await tx
-			.insert(product)
-			.values(catalogue.map((entry) => entry.product))
-			.returning({ id: product.id, slug: product.slug });
-
-		const idBySlug = new Map(inserted.map((row) => [row.slug, row.id]));
-
-		const skuRows = catalogue.flatMap((entry) => {
-			const productId = idBySlug.get(entry.product.slug);
-			if (!productId) throw new Error(`Missing id for ${entry.product.slug}`);
-			return entry.skus.map((sku) => ({ ...sku, productId }));
-		});
-
-		// Chunked to stay far below Postgres' 65,535 bind-parameter limit.
-		for (let i = 0; i < skuRows.length; i += 1_000) {
-			await tx.insert(skus).values(skuRows.slice(i, i + 1_000));
-		}
-
-		console.log(`Seeded ${catalogue.length} products, ${skuRows.length} SKUs.`);
-	});
+	for (const entry of catalogue)
+		await putCatalogProduct({ ...entry.product, skus: entry.skus });
+	console.log(
+		`Seeded ${catalogue.length} products, ${catalogue.reduce((count, entry) => count + entry.skus.length, 0)} SKUs in Redis.`,
+	);
 }
 
 /** The catalogue pages read from the Redis search index, so rebuild it from what was just seeded. */
@@ -218,7 +231,7 @@ async function syncSearchIndex() {
 	}
 }
 
-/** The home page reads cached stats, so refresh them or it shows zeros for a day. */
+/** Report counts from the current Redis catalog. */
 async function refreshStatsCache() {
 	try {
 		const stats = await Promise.race([
@@ -239,6 +252,15 @@ async function refreshStatsCache() {
 }
 
 try {
+	for await (const keys of scanRedisKeys("catalog:product:*")) {
+		for (const key of keys) {
+			const record = catalogRecordSchema.parse(
+				await (await getRedis()).json.get(key),
+			);
+			if (record.warehouse.endsWith(".example"))
+				await deleteCatalogProduct(record.id);
+		}
+	}
 	await seed();
 	await syncSearchIndex();
 	await refreshStatsCache();

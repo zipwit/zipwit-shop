@@ -3,7 +3,6 @@ import { Badge } from "#/components/ui/badge";
 import { Checkbox } from "#/components/ui/checkbox";
 import { Label } from "#/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "#/components/ui/toggle-group";
-import { cn } from "#/lib/utils";
 import { FilterPopover } from "./filter-popover";
 
 type FacetOption = { value: string; count: number };
@@ -15,8 +14,7 @@ type FacetFilterProps = {
 	onChange: (selected: string[]) => void;
 	/** "list" for long lists with counts (brands); "chips" for short ones (sizes, colors). */
 	layout?: "list" | "chips";
-	/** Styles each option's text, e.g. "capitalize". */
-	optionClassName?: string;
+	getOptionLabel?: (value: string) => string;
 };
 
 /** A filter button that opens a popover of choices; one component serves brand, size and color. */
@@ -26,7 +24,7 @@ export function FacetFilter({
 	selected,
 	onChange,
 	layout = "list",
-	optionClassName,
+	getOptionLabel = (value) => value,
 }: FacetFilterProps) {
 	const id = useId();
 
@@ -69,9 +67,8 @@ export function FacetFilter({
 							key={option.value}
 							value={option.value}
 							disabled={option.count === 0 && !selected.includes(option.value)}
-							className={optionClassName}
 						>
-							{option.value}
+							{getOptionLabel(option.value)}
 						</ToggleGroupItem>
 					))}
 				</ToggleGroup>
@@ -80,7 +77,7 @@ export function FacetFilter({
 					{shown.map((option, index) => (
 						<li
 							key={option.value}
-							className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted"
+							className="facet-choice-row flex items-center gap-2.5 rounded-xl px-3 py-2.5"
 						>
 							<Checkbox
 								id={`${id}-${index}`}
@@ -89,12 +86,9 @@ export function FacetFilter({
 							/>
 							<Label
 								htmlFor={`${id}-${index}`}
-								className={cn(
-									"flex-1 cursor-pointer font-normal",
-									optionClassName,
-								)}
+								className="flex-1 cursor-pointer font-normal"
 							>
-								{option.value}
+								{getOptionLabel(option.value)}
 							</Label>
 							<span className="text-muted-foreground text-xs tabular-nums">
 								{option.count}

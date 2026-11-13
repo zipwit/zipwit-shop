@@ -72,6 +72,8 @@ const quote = calculateQuote(
 		{
 			id,
 			name: "Shoes (Black, 8)",
+			color: "Black",
+			size: "8",
 			price: 13500,
 			currency: "GEL",
 			quantity: 1,
@@ -189,7 +191,6 @@ it("atomically stores an order, item snapshots, and notification as pending, not
 	state.rows.push(
 		[draft],
 		[{ name: "Buyer", email: "buyer@example.com" }],
-		[{ id, color: "Black", size: "8" }],
 		[publicRow],
 	);
 	const result = await submitCheckout("buyer", id);
@@ -238,14 +239,17 @@ it("stores all item snapshots in one batch, including removed catalog SKUs", asy
 	const quoteWithRemovedSku = calculateQuote(
 		[
 			firstLine,
-			{ ...firstLine, id: "removed-sku", name: "Original product name" },
+			{
+				...firstLine,
+				id: "00000000-0000-4000-8000-000000000002",
+				name: "Original product name",
+			},
 		],
 		quote.pricing,
 	);
 	state.rows.push(
 		[{ ...draft, quote: quoteWithRemovedSku }],
 		[{ name: "Buyer", email: "buyer@example.com" }],
-		[{ id, color: "Black", size: "8" }],
 		[{ ...publicRow, quote: quoteWithRemovedSku }],
 	);
 	await submitCheckout("buyer", id);
@@ -255,7 +259,9 @@ it("stores all item snapshots in one batch, including removed catalog SKUs", asy
 			value: [
 				expect.objectContaining({ skuId: id, price: 5000 }),
 				expect.objectContaining({
-					skuId: null,
+					skuId: "00000000-0000-4000-8000-000000000002",
+					color: "Black",
+					size: "8",
 					name: "Original product name",
 					price: 5000,
 				}),
@@ -305,4 +311,13 @@ it("persists the per-warehouse breakdown on a new checkout", async () => {
 			}),
 		},
 	]);
+});
+
+it("does not mislabel a catalog outage as an unavailable item", async () => {
+	state.pricing.mockResolvedValue(quote.pricing);
+	const failure = new Error("catalog unavailable");
+	state.cart.mockRejectedValueOnce(failure);
+	state.rows.push([], [{ id: "buyer" }], [], [], [shippingAddress]);
+	await expect(prepareCheckout("buyer", id, id)).rejects.toBe(failure);
+	expect(state.inserts).toHaveLength(0);
 });

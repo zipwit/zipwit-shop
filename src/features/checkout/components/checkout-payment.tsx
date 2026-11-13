@@ -1,21 +1,23 @@
+import { useCopyToClipboard } from "@better-auth-ui/react";
 import { useEffect, useState } from "react";
 import { Check, Copy } from "#/components/icons";
 import { LinkButton } from "#/components/link-button";
 import { Button } from "#/components/ui/button";
-import { site } from "#/data/site";
-import { languageTags, useLocale } from "#/i18n/locale";
+import { formatStoreDateTime } from "#/i18n/format";
+import { useLocale } from "#/i18n/locale";
 import { useTranslation } from "#/i18n/translate";
 import { usePriceFormatter } from "#/lib/price";
 import type { CheckoutView } from "../checkout";
 
 function PaymentDetail({ label, value }: { label: string; value: string }) {
 	const t = useTranslation();
-	const [status, setStatus] = useState("");
-	useEffect(() => {
-		if (!status) return;
-		const timer = setTimeout(() => setStatus(""), 3_000);
-		return () => clearTimeout(timer);
-	}, [status]);
+	const [copyFailed, setCopyFailed] = useState(false);
+	const { copied, copy } = useCopyToClipboard({ feedbackDuration: 3_000 });
+	const status = copied
+		? t("Copied")
+		: copyFailed
+			? t("Couldn't copy. Select and copy the text manually.")
+			: "";
 	return (
 		<div className="space-y-2">
 			<dt className="text-xs font-medium text-muted-foreground">{label}</dt>
@@ -28,20 +30,9 @@ function PaymentDetail({ label, value }: { label: string; value: string }) {
 					size="icon"
 					className="size-11"
 					aria-label={t("Copy {{label}}", { label })}
-					onClick={async () => {
-						try {
-							await navigator.clipboard.writeText(value);
-							setStatus(t("Copied"));
-						} catch {
-							setStatus(t("Couldn't copy. Select and copy the text manually."));
-						}
-					}}
+					onClick={async () => setCopyFailed(!(await copy(value)))}
 				>
-					{status === t("Copied") ? (
-						<Check aria-hidden="true" />
-					) : (
-						<Copy aria-hidden="true" />
-					)}
+					{copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
 				</Button>
 			</dd>
 			{status && (
@@ -63,10 +54,9 @@ export function CheckoutPayment({
 	const t = useTranslation();
 	const locale = useLocale();
 	const { formatPrice } = usePriceFormatter();
-	const [expired, setExpired] = useState(
-		() => Date.now() >= Date.parse(checkout.expiresAt),
-	);
+	const [expired, setExpired] = useState<boolean | null>(null);
 	useEffect(() => {
+		setExpired(Date.now() >= Date.parse(checkout.expiresAt));
 		const timer = setTimeout(
 			() => setExpired(true),
 			Math.max(0, Date.parse(checkout.expiresAt) - Date.now()),
@@ -75,7 +65,12 @@ export function CheckoutPayment({
 	}, [checkout.expiresAt]);
 	return (
 		<>
-			{!expired && (
+			{expired === null && (
+				<p role="status" className="text-sm text-muted-foreground">
+					{t("Checking payment instructions…")}
+				</p>
+			)}
+			{expired === false && (
 				<p className="text-sm leading-relaxed text-muted-foreground">
 					{t(
 						"Transfer either amount below and include your payment reference.",
@@ -88,7 +83,7 @@ export function CheckoutPayment({
 						"These payment instructions have expired. Do not make a new transfer. If you already paid, upload your proof; otherwise start a new checkout.",
 					)}
 				</p>
-			) : (
+			) : expired === false ? (
 				<>
 					<div className="brand-surface rounded-xl p-5 text-white sm:p-6">
 						<p className="type-eyebrow text-white/65">
@@ -96,9 +91,6 @@ export function CheckoutPayment({
 						</p>
 						<p className="type-num mt-3 flex flex-wrap items-baseline gap-x-2 text-4xl">
 							<span>{formatPrice(checkout.quote.totalUsd, "USD")}</span>
-							<span className="font-sans text-sm font-medium text-white/65">
-								USD
-							</span>
 						</p>
 						<p className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-white/15 pt-4 text-sm text-white/70">
 							<span>{t("Or pay in lari:")}</span>
@@ -117,11 +109,7 @@ export function CheckoutPayment({
 					</dl>
 					<p className="text-xs leading-relaxed text-muted-foreground">
 						{t("Payment instructions valid until {{time}}", {
-							time: new Intl.DateTimeFormat(languageTags[locale], {
-								dateStyle: "medium",
-								timeStyle: "short",
-								timeZone: site.timezone,
-							}).format(new Date(checkout.expiresAt)),
+							time: formatStoreDateTime(checkout.expiresAt, locale),
 						})}
 					</p>
 					<p className="text-xs leading-relaxed text-muted-foreground">
@@ -130,7 +118,7 @@ export function CheckoutPayment({
 						)}
 					</p>
 				</>
-			)}
+			) : null}
 			<Button
 				className="h-auto min-h-12 w-full whitespace-normal py-3"
 				size="lg"

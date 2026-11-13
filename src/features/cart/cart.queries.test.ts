@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { expect, it, vi } from "vitest";
-import type { CartItem } from "./cart";
+import type { CartSnapshot } from "./cart";
 import { getCartFn } from "./cart.functions";
 import { cartQuery } from "./cart.queries";
 
@@ -8,27 +8,31 @@ vi.mock("./cart.functions", () => ({ getCartFn: vi.fn() }));
 
 it("aborts the transport and preserves the cart when a pending read is cancelled", async () => {
 	const client = new QueryClient();
-	const response = Promise.withResolvers<CartItem[]>();
+	const response = Promise.withResolvers<CartSnapshot>();
 	vi.mocked(getCartFn).mockReturnValue(response.promise);
-	client.setQueryData(cartQuery.queryKey, []);
+	const empty = { items: [], unavailableIds: [] };
+	client.setQueryData(cartQuery.queryKey, empty);
 	const request = client.query(cartQuery).catch((error: unknown) => error);
 	const signal = vi.mocked(getCartFn).mock.calls[0]?.[0]?.signal;
 	expect(signal).toBeInstanceOf(AbortSignal);
 
 	await client.cancelQueries({ queryKey: cartQuery.queryKey });
 	expect(signal?.aborted).toBe(true);
-	expect(await request).toEqual([]);
-	response.resolve([
-		{
-			id: "stale",
-			name: "Stale response",
-			quantity: 1,
-			price: 100,
-			currency: "GEL",
-			image: null,
-		},
-	]);
+	expect(await request).toEqual(empty);
+	response.resolve({
+		unavailableIds: ["missing"],
+		items: [
+			{
+				id: "stale",
+				name: "Stale response",
+				quantity: 1,
+				price: 100,
+				currency: "GEL",
+				image: null,
+			},
+		],
+	});
 	await response.promise;
-	expect(client.getQueryData(cartQuery.queryKey)).toEqual([]);
+	expect(client.getQueryData(cartQuery.queryKey)).toEqual(empty);
 	client.clear();
 });

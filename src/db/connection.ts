@@ -11,9 +11,9 @@ const dbEnv = z
 	.object({
 		DB_HOST: z.string().min(1).default("localhost"),
 		DB_PORT: z.coerce.number().int().positive().default(5432),
-		DB_USER: z.string().min(1).default("root"),
+		DB_USER: z.string().min(1).default("postgres"),
 		DB_PASSWORD: z.string(),
-		DB_NAME: z.string().min(1).default("2o"),
+		DB_NAME: z.string().min(1).default("zipwit"),
 		DB_SSL: z.enum(["true", "false"]).default("false"),
 		DB_SSL_SERVERNAME: z.string().optional(),
 	})

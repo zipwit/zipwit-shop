@@ -14,18 +14,21 @@ function OrderItems({ items }: { items: CartItem[] }) {
 	return (
 		<ul className="divide-y">
 			{items.map((item) => (
-				<li key={item.id} className="flex gap-3 py-4 first:pt-0">
+				<li
+					key={item.id}
+					className="flex items-start gap-4 py-5 first:pt-0 last:pb-0"
+				>
 					<ProductImage
 						compact
 						src={item.image}
 						alt=""
-						className="size-14 shrink-0 rounded-lg bg-muted"
+						className="size-16 shrink-0 rounded-md border border-border/60 bg-background"
 					/>
 					<div className="min-w-0 flex-1 text-sm">
-						<p className="wrap-anywhere font-medium leading-snug">
+						<p className="wrap-anywhere font-medium leading-relaxed">
 							{item.name}
 						</p>
-						<div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+						<div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
 							<p className="text-xs text-muted-foreground">
 								{item.quantity} × {formatPrice(item.price, item.currency)}
 							</p>
@@ -45,8 +48,10 @@ export function OrderSummary({ quote }: { quote: CheckoutQuote }) {
 	const { formatPrice } = usePriceFormatter();
 	const usd = (value: number) => formatPrice(value, "USD");
 	return (
-		<div className="space-y-5 rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
-			<h2 className="type-title text-xl">{t("Order summary")}</h2>
+		<div className="space-y-6 rounded-lg border border-border/80 bg-card p-5 shadow-premium-sm sm:p-6">
+			<h2 className="type-title border-b border-border/70 pb-5 text-xl">
+				{t("Order summary")}
+			</h2>
 			{quote.shipments ? (
 				quote.shipments.map((shipment, index) => {
 					const items = quote.lines
@@ -57,8 +62,9 @@ export function OrderSummary({ quote }: { quote: CheckoutQuote }) {
 							currency: "USD",
 						}));
 					return (
-						<section key={shipment.groupId}>
+						<section key={shipment.groupId} className="space-y-5">
 							<ShipmentDetails
+								className="rounded-md border border-border/60 bg-background/70 p-4"
 								number={index + 1}
 								items={items}
 								quote={shipment}
@@ -79,7 +85,7 @@ export function OrderSummary({ quote }: { quote: CheckoutQuote }) {
 
 			<dl className="space-y-3 border-t pt-4 text-sm [&>div]:flex [&>div]:flex-wrap [&>div]:justify-between [&>div]:gap-x-3 [&>div]:gap-y-1 [&_dd]:font-medium [&_dd]:tabular-nums">
 				<div>
-					<dt>{t("Items (USD)")}</dt>
+					<dt>{t("Items")}</dt>
 					<dd>{usd(quote.subtotalUsd)}</dd>
 				</div>
 				<div>
@@ -97,7 +103,7 @@ export function OrderSummary({ quote }: { quote: CheckoutQuote }) {
 					</dd>
 				</div>
 				<div className="border-t pt-4 text-base font-semibold">
-					<dt>{t("Total (USD)")}</dt>
+					<dt>{t("Total")}</dt>
 					<dd className="type-num text-xl">{usd(quote.totalUsd)}</dd>
 				</div>
 				<div className="text-muted-foreground">
@@ -118,8 +124,10 @@ export function CartSummary({ cart }: { cart: ReturnType<typeof useCart> }) {
 	const t = useTranslation();
 	const { formatPrice } = usePriceFormatter();
 	return (
-		<div className="space-y-5 rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
-			<h2 className="type-title text-xl">{t("Order summary")}</h2>
+		<div className="space-y-6 rounded-lg border border-border/80 bg-card p-5 shadow-premium-sm sm:p-6">
+			<h2 className="type-title border-b border-border/70 pb-5 text-xl">
+				{t("Order summary")}
+			</h2>
 			{cart.isPending ? (
 				<p role="status">{t("Loading your cart…")}</p>
 			) : cart.isError ? (
@@ -141,8 +149,12 @@ export function CartSummary({ cart }: { cart: ReturnType<typeof useCart> }) {
 			) : (
 				<>
 					{groupShipments(cart.items).map((group, index) => (
-						<section key={group.groupId}>
-							<ShipmentDetails number={index + 1} items={group.lines} />
+						<section key={group.groupId} className="space-y-5">
+							<ShipmentDetails
+								className="rounded-md border border-border/60 bg-background/70 p-4"
+								number={index + 1}
+								items={group.lines}
+							/>
 							<OrderItems items={group.lines} />
 						</section>
 					))}
@@ -152,7 +164,7 @@ export function CartSummary({ cart }: { cart: ReturnType<typeof useCart> }) {
 					</div>
 					<p className="text-xs leading-relaxed text-muted-foreground">
 						{t(
-							"Review your final total in USD and GEL, including shipping and fees, before you pay.",
+							"Review your final total, including shipping and fees, before you pay.",
 						)}
 					</p>
 				</>

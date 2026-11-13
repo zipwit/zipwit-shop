@@ -14,6 +14,15 @@ async function connection(ssl: string, servername = "") {
 }
 
 describe("database TLS", () => {
+	it("uses the renamed PostgreSQL development defaults", async () => {
+		vi.stubEnv("DB_USER", undefined);
+		vi.stubEnv("DB_NAME", undefined);
+		expect(await connection("false")).toMatchObject({
+			user: "postgres",
+			database: "zipwit",
+		});
+	});
+
 	it("respects an explicit opt-out in production", async () => {
 		vi.stubEnv("NODE_ENV", "production");
 		expect((await connection("false")).ssl).toBe(false);

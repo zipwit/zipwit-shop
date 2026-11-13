@@ -1,133 +1,100 @@
 import { createHash } from "node:crypto";
-import { db } from "#/db";
+import { catalogSummary } from "#/features/catalog/catalog-projection.server";
+import {
+	catalogKeys,
+	catalogRecordSchema,
+} from "#/features/catalog/catalog-record";
 import { publicStoreId } from "#/features/stores/store.server";
-import { getRedis } from "#/server/redis.server";
-import { buildCatalogDocs } from "./catalog-doc";
+import { getRedis, scanRedisKeys } from "#/server/redis.server";
 import { schemaArgs } from "./catalog-fields";
 import { ft } from "./redis-ft.server";
 
 const FAMILY = "catalog_";
 const KEY_PREFIX = "product:";
-
-/** Named after its schema, so changing `FIELDS` simply creates a new index. */
-export const INDEX = `${FAMILY}${createHash("sha1")
-	.update(schemaArgs().join("|"))
-	.update(publicStoreId("catalog-index"))
-	.digest("hex")
-	.slice(0, 8)}`;
-
-let indexReady: Promise<boolean> | undefined;
+export const INDEX = `${FAMILY}${createHash("sha1").update(schemaArgs().join("|")).update(publicStoreId("catalog-index")).digest("hex").slice(0, 8)}`;
+let indexReady: Promise<void> | undefined;
 
 async function createIndex() {
 	const existing = await ft.list();
-	const created = !existing.includes(INDEX);
-	if (created) {
-		await ft.create(INDEX, KEY_PREFIX, schemaArgs());
+	if (!existing.includes(INDEX)) {
+		try {
+			await ft.create(INDEX, KEY_PREFIX, schemaArgs());
+		} catch (error) {
+			if (
+				!(error instanceof Error) ||
+				!/index already exists/i.test(error.message)
+			)
+				throw error;
+		}
 	}
-	// Indexes from an older schema only cost memory.
-	await Promise.all(
-		existing
-			.filter((name) => name.startsWith(FAMILY) && name !== INDEX)
-			.map((name) => ft.dropIndex(name)),
-	);
-	return created;
+	// Avoid dropping other versions while an older app instance is still serving a rolling deploy.
 }
-
-const ensureIndex = () => {
-	indexReady ??= createIndex().catch((error: unknown) => {
+const ensureIndex = () =>
+	(indexReady ??= createIndex().catch((error: unknown) => {
 		indexReady = undefined;
 		throw error;
-	});
-	return indexReady;
-};
+	}));
 
-/** Deletes indexed products that are no longer in the catalogue. */
-async function removeStaleKeys(live: ReadonlySet<string>) {
-	const redis = await getRedis();
-	let cursor = "0";
-	do {
-		const { cursor: next, keys } = await redis.scan(cursor, {
-			MATCH: `${KEY_PREFIX}*`,
-			COUNT: 1_000,
-		});
-		cursor = String(next);
-		const stale = keys.map(String).filter((key) => !live.has(key));
-		if (stale.length > 0) await redis.del(stale);
-	} while (cursor !== "0");
-}
-
-/**
- * Rebuilds the search index from Postgres and returns how many products it
- * holds. Safe to run any time and as often as you like: it overwrites in place.
- */
+/** Rebuild derived Search data from Redis catalog records; never read PostgreSQL. */
 export async function syncCatalogIndex() {
 	await ensureIndex();
-
-	const rows = await db.query.product.findMany({
-		columns: {
-			id: true,
-			slug: true,
-			name: true,
-			brand: true,
-			department: true,
-			category: true,
-			currency: true,
-			warehouse: true,
-		},
-		with: {
-			skus: {
-				where: { inStock: true },
-				columns: {
-					color: true,
-					size: true,
-					price: true,
-					originalPrice: true,
-					discount: true,
-					imageUrl: true,
-				},
-			},
-		},
-	});
-
-	const docs = buildCatalogDocs(
-		rows.map(({ warehouse, ...product }) => ({
-			...product,
-			storeId: publicStoreId(warehouse),
-		})),
-	);
 	const redis = await getRedis();
-
-	for (let i = 0; i < docs.length; i += 500) {
-		const batch = redis.multi();
-		for (const doc of docs.slice(i, i + 500)) {
-			batch.json.set(KEY_PREFIX + doc.id, "$", doc);
+	let count = 0;
+	for await (const keys of scanRedisKeys("catalog:product:*")) {
+		for (const key of keys) {
+			const value = await redis.json.get(key);
+			if (value === null) continue;
+			const record = catalogRecordSchema.parse(value);
+			const summary = catalogSummary(record);
+			// A concurrent catalog update wins over this older projection.
+			await redis.eval(
+				`
+local current = redis.call('JSON.GET', KEYS[1])
+if not current or cjson.decode(current).updatedAt ~= ARGV[1] then return 0 end
+if ARGV[2] == '' then redis.call('DEL', KEYS[2])
+else
+ redis.call('JSON.SET', KEYS[2], '$', ARGV[2])
+ if ARGV[3] ~= '' then redis.call('EXPIREAT', KEYS[2], ARGV[3]) else redis.call('PERSIST', KEYS[2]) end
+end
+return 1
+`,
+				{
+					keys: [key, catalogKeys.search(record.id)],
+					arguments: [
+						record.updatedAt,
+						summary ? JSON.stringify(summary) : "",
+						summary?.expiresAt ? String(summary.expiresAt) : "",
+					],
+				},
+			);
+			if (summary) count++;
 		}
-		await batch.execAsPipeline();
 	}
-
-	await removeStaleKeys(new Set(docs.map((doc) => KEY_PREFIX + doc.id)));
-	return docs.length;
+	for await (const keys of scanRedisKeys(`${KEY_PREFIX}*`)) {
+		for (const key of keys) {
+			if (!key.startsWith("product:{")) {
+				await redis.del(key);
+				continue;
+			}
+			const id = key.slice("product:{".length, -1);
+			await redis.eval(
+				`if redis.call('EXISTS', KEYS[1]) == 0 then return redis.call('DEL', KEYS[2]) end return 0`,
+				{ keys: [catalogKeys.record(id), key], arguments: [] },
+			);
+		}
+	}
+	await redis.set("catalog:format", INDEX);
+	return count;
 }
 
 let catalogReady: Promise<void> | undefined;
-
-/**
- * Every search goes through here. It creates the index, and if Redis came up
- * empty (a fresh volume, a lost disk) it refills it from Postgres, so the
- * storefront heals itself instead of showing an empty catalogue.
- */
-export const ensureCatalogReady = () => {
-	catalogReady ??= (async () => {
-		const created = await ensureIndex();
-		const { total } = await ft.search(INDEX, "*", {
-			offset: 0,
-			limit: 0,
-		});
-		// Existing JSON documents also need new derived fields after a schema change.
-		if (created || total === 0) await syncCatalogIndex();
+/** Initialize the Search schema and rebuild derived fields after a format change. */
+export const ensureCatalogReady = () =>
+	(catalogReady ??= (async () => {
+		await ensureIndex();
+		if ((await (await getRedis()).get("catalog:format")) !== INDEX)
+			await syncCatalogIndex();
 	})().catch((error: unknown) => {
 		catalogReady = undefined;
 		throw error;
-	});
-	return catalogReady;
-};
+	}));

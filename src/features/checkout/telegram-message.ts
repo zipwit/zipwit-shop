@@ -20,7 +20,7 @@ export function orderMessages(order: OrderNotice) {
 	const { address: a } = order;
 	const q = restoreCheckoutQuote(order.quote);
 	const blocks = [
-		`<b>🛍 New 2o order</b>\n<code>${escapeHtml(order.id)}</code>\n<b>Payment awaiting verification</b>`,
+		`<b>🛍 New Zipwit Shop order</b>\n<code>${escapeHtml(order.id)}</code>\n<b>Payment awaiting verification</b>`,
 		`<b>Customer</b>\n${escapeHtml(order.name)}\n${escapeHtml(order.email)}\n${escapeHtml(order.createdAt.toISOString())}`,
 		`<b>U.S. delivery</b>\n${[a.fullName, a.line1, a.line2, `${a.city}, ${a.state} ${a.postalCode}`, "United States", a.phone].filter(Boolean).map(escapeHtml).join("\n")}`,
 		"<b>Items</b>",

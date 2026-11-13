@@ -1,27 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-import { Check, CircleCheckIcon } from "#/components/icons";
+import { useEffect, useRef } from "react";
 import { Container } from "#/components/layout/container";
 import { LinkButton } from "#/components/link-button";
-import { Button } from "#/components/ui/button";
-import { site } from "#/data/site";
-import { addressesQuery } from "#/features/addresses/address.queries";
-import { AddressDialog } from "#/features/addresses/components/address-dialog";
-import { useCart, useCartUpdating } from "#/features/cart/use-cart";
-import { validShippingRule } from "#/features/shipping/shipping";
-import { languageTags, useLocale } from "#/i18n/locale";
+import { useCart } from "#/features/cart/use-cart";
 import { useTranslation } from "#/i18n/translate";
-import { cn } from "#/lib/utils";
-import { isUsCountry } from "../checkout";
 import type { checkoutPageFn } from "../checkout.functions";
 import { useCheckout } from "../use-checkout";
-import { CheckoutAddressPicker, DeliveryAddress } from "./checkout-address";
+import { DeliveryAddress } from "./checkout-address";
+import { CheckoutDelivery } from "./checkout-delivery";
 import { CheckoutPayment } from "./checkout-payment";
+import { CheckoutProgress } from "./checkout-progress";
 import { CheckoutProof } from "./checkout-proof";
+import { CheckoutReceipt } from "./checkout-receipt";
 import { CartSummary, OrderSummary } from "./order-summary";
 
 type PageData = Awaited<ReturnType<typeof checkoutPageFn>>;
-const steps = ["Delivery address", "Bank transfer", "Payment proof"];
 const stepTitles = [
 	"Choose your U.S. delivery address",
 	"Transfer the exact amount",
@@ -56,24 +48,9 @@ export function CheckoutPage({ data }: { data: PageData }) {
 
 function CheckoutFlow({ data, userId }: { data: PageData; userId: string }) {
 	const t = useTranslation();
-	const locale = useLocale();
 	const cart = useCart();
-	const cartUpdating = useCartUpdating();
-	const {
-		data: addresses = [],
-		isError: addressError,
-		refetch: refreshAddresses,
-	} = useQuery({ ...addressesQuery(userId), initialData: data.addresses });
-	const [addingAddress, setAddingAddress] = useState(false);
-	const [addressId, setAddressId] = useState("");
 	const flow = useCheckout(data.checkout);
 	const { checkout, step, busy, error } = flow;
-	const selected =
-		addresses.find((address) => address.id === addressId) ??
-		addresses.find(
-			(address) => address.isPrimary && isUsCountry(address.country),
-		) ??
-		addresses.find((address) => isUsCountry(address.country));
 	const heading = useRef<HTMLHeadingElement>(null);
 	const previousStep = useRef(1);
 	const submittedAt = checkout?.submittedAt;
@@ -84,39 +61,10 @@ function CheckoutFlow({ data, userId }: { data: PageData; userId: string }) {
 
 	if (checkout?.submittedAt)
 		return (
-			<Container className="max-w-3xl space-y-7 py-12 md:py-16">
-				<div className="space-y-4 rounded-2xl border border-price/20 bg-price-savings p-6 sm:p-8">
-					<CircleCheckIcon className="size-10 text-price" aria-hidden="true" />
-					<p className="type-eyebrow text-price">{t("Order received")}</p>
-					<h1
-						ref={heading}
-						tabIndex={-1}
-						className="type-title text-3xl outline-none"
-					>
-						{t("Payment awaiting verification")}
-					</h1>
-					<p className="text-sm leading-relaxed">
-						{t(
-							"We received your order and payment screenshot. We will verify the bank transfer before processing your order.",
-						)}
-					</p>
-					<p className="text-sm">
-						{t("Order ID")}:{" "}
-						<span className="break-all font-mono select-all">
-							{checkout.id}
-						</span>
-					</p>
-					<p className="text-sm text-muted-foreground">
-						{new Intl.DateTimeFormat(languageTags[locale], {
-							dateStyle: "medium",
-							timeStyle: "short",
-							timeZone: site.timezone,
-						}).format(new Date(checkout.submittedAt))}
-					</p>
-				</div>
-				<OrderSummary quote={checkout.quote} />
-				<LinkButton to="/">{t("Continue shopping")}</LinkButton>
-			</Container>
+			<CheckoutReceipt
+				checkout={{ ...checkout, submittedAt: checkout.submittedAt }}
+				heading={heading}
+			/>
 		);
 
 	return (
@@ -130,51 +78,11 @@ function CheckoutFlow({ data, userId }: { data: PageData; userId: string }) {
 					{t("We deliver only to your U.S. address.")}
 				</p>
 			</div>
-			<ol
-				aria-label={t("Checkout steps")}
-				className="mb-8 grid grid-cols-3 gap-3 sm:gap-6"
-			>
-				{steps.map((label, index) => (
-					<li
-						key={label}
-						aria-current={step === index + 1 ? "step" : undefined}
-						className={cn(
-							"min-w-0 border-t-2 pt-3",
-							step === index + 1
-								? "border-foreground"
-								: step > index + 1
-									? "border-price"
-									: "border-border",
-						)}
-					>
-						<span
-							className={cn(
-								"mb-2 flex size-7 items-center justify-center rounded-full text-xs font-semibold",
-								step === index + 1
-									? "bg-foreground text-background"
-									: step > index + 1
-										? "bg-price-savings text-price"
-										: "bg-muted text-muted-foreground",
-							)}
-							aria-hidden="true"
-						>
-							{step > index + 1 ? <Check className="size-4" /> : index + 1}
-						</span>
-						<span
-							className={cn(
-								"block wrap-anywhere text-xs leading-relaxed sm:text-sm",
-								step === index + 1 ? "font-semibold" : "text-muted-foreground",
-							)}
-						>
-							{t(label)}
-						</span>
-					</li>
-				))}
-			</ol>
+			<CheckoutProgress step={step} />
 			<div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-8">
 				<section
 					aria-labelledby="checkout-step-title"
-					className="min-w-0 space-y-5 rounded-2xl border bg-card p-5 shadow-sm sm:p-7"
+					className="min-w-0 space-y-5 rounded-lg border bg-card p-5 shadow-sm sm:p-7"
 				>
 					<h2
 						id="checkout-step-title"
@@ -193,48 +101,13 @@ function CheckoutFlow({ data, userId }: { data: PageData; userId: string }) {
 						</p>
 					)}
 					{step === 1 && (
-						<>
-							{!data.ready && (
-								<p role="status" className="rounded-lg bg-muted p-4 text-sm">
-									{t(
-										"Checkout is temporarily unavailable. Please try again later.",
-									)}
-								</p>
-							)}
-							{addressError && (
-								<Button variant="outline" onClick={() => refreshAddresses()}>
-									{t("Try again")}
-								</Button>
-							)}
-							<CheckoutAddressPicker
-								addresses={addresses}
-								selectedId={selected?.id}
-								disabled={Boolean(busy)}
-								onSelect={setAddressId}
-								onAdd={() => setAddingAddress(true)}
-							/>
-							<Button
-								className="h-auto min-h-12 w-full whitespace-normal py-3"
-								size="lg"
-								disabled={
-									!selected ||
-									!data.ready ||
-									cart.isPending ||
-									cart.isError ||
-									cartUpdating ||
-									!cart.items.length ||
-									cart.items.some(
-										(item) => !validShippingRule(item.shipping?.rule),
-									) ||
-									Boolean(busy)
-								}
-								onClick={() => selected && flow.prepare(selected.id)}
-							>
-								{busy === "prepare"
-									? t("Preparing checkout…")
-									: t("Review total and continue")}
-							</Button>
-						</>
+						<CheckoutDelivery
+							userId={userId}
+							initialAddresses={data.addresses}
+							ready={data.ready}
+							busy={busy}
+							onPrepare={flow.prepare}
+						/>
 					)}
 					{step === 2 && checkout && (
 						<CheckoutPayment
@@ -260,7 +133,7 @@ function CheckoutFlow({ data, userId }: { data: PageData; userId: string }) {
 						<CartSummary cart={cart} />
 					)}
 					{checkout && (
-						<div className="rounded-xl bg-muted/50 p-5">
+						<div className="rounded-lg bg-muted/50 p-5">
 							<h2 className="mb-3 text-sm font-semibold">
 								{t("Delivery address")}
 							</h2>
@@ -269,11 +142,6 @@ function CheckoutFlow({ data, userId }: { data: PageData; userId: string }) {
 					)}
 				</aside>
 			</div>
-			<AddressDialog
-				open={addingAddress}
-				onOpenChange={setAddingAddress}
-				firstAddress={!addresses.length}
-			/>
 		</Container>
 	);
 }

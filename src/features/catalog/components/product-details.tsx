@@ -5,6 +5,9 @@ import { AddToCartButton } from "#/features/cart/components/add-to-cart-button";
 import type { ProductDetail } from "#/features/catalog/product.functions";
 import type { SkuSelection } from "#/features/catalog/product-selection";
 import { StoreLabel } from "#/features/stores/store-label";
+import { colorLabel } from "#/i18n/color-label";
+import { useLocale } from "#/i18n/locale";
+import { sizeLabel } from "#/i18n/size-label";
 import { useTranslation } from "#/i18n/translate";
 import { isOnSale } from "#/lib/price";
 import { OptionGroup } from "./option-group";
@@ -26,15 +29,18 @@ export function ProductDetails({
 	onSkuChange,
 }: ProductDetailsProps) {
 	const t = useTranslation();
+	const locale = useLocale();
 	const { colors, color, colorSkus, selected, shown, imageUrl } = selection;
 
 	return (
 		<Container className="grid items-start gap-8 py-8 md:grid-cols-[1.05fr_0.95fr] md:gap-12 md:py-12 lg:gap-20 lg:py-16">
 			<ProductImage
 				src={imageUrl}
-				alt={[product.name, color].filter(Boolean).join(", ")}
+				alt={[product.name, colorLabel(color, locale)]
+					.filter(Boolean)
+					.join(", ")}
 				fetchPriority="high"
-				className="aspect-4/5 rounded-xl md:sticky md:top-8"
+				className="aspect-4/5 rounded-xl md:sticky md:top-32"
 			/>
 
 			<div className="flex min-w-0 max-w-xl flex-col gap-7 md:py-4 lg:gap-8">
@@ -85,12 +91,16 @@ export function ProductDetails({
 								legend={
 									<>
 										{t("Color:")}{" "}
-										<span className="font-normal capitalize">{color}</span>
+										<span className="font-normal">
+											{colorLabel(color, locale)}
+										</span>
 									</>
 								}
-								className="capitalize"
 								value={color}
-								options={colors.map((c) => ({ value: c, label: c }))}
+								options={colors.map((c) => ({
+									value: c,
+									label: colorLabel(c, locale),
+								}))}
 								onChange={(next) => next && onColorChange(next)}
 							/>
 						)}
@@ -100,25 +110,35 @@ export function ProductDetails({
 							value={selected?.id}
 							options={colorSkus.map((s) => ({
 								value: s.id,
-								label: s.size,
+								label: sizeLabel(s.size, locale),
 								soldOut: !s.inStock,
 								ariaLabel: t(
 									s.inStock ? "Size {{size}}" : "Size {{size}}, sold out",
-									{ size: s.size },
+									{ size: sizeLabel(s.size, locale) },
 								),
 							}))}
 							onChange={onSkuChange}
 						/>
 
 						<div>
-							<AddToCartButton sku={selected?.id} />
+							{product.purchasable ? (
+								<AddToCartButton sku={selected?.id} />
+							) : (
+								<p className="rounded-lg bg-muted p-3 text-sm">
+									{t(
+										"This product is available to browse. Ordering is not open yet.",
+									)}
+								</p>
+							)}
 							<div className="type-caption mt-3 space-y-1 text-muted-foreground">
 								<p className="text-foreground">
-									{selected
-										? selected.inStock
-											? t("In stock and ready to order.")
-											: t("This size is currently sold out.")
-										: t("Select a size to check availability.")}
+									{!product.purchasable
+										? t("Availability reflects the latest supplier check.")
+										: selected
+											? selected.inStock
+												? t("In stock and ready to order.")
+												: t("This size is currently sold out.")
+											: t("Select a size to check availability.")}
 								</p>
 								<p>
 									{t(

@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { db } from "#/db";
 import {
 	address,
@@ -6,11 +6,11 @@ import {
 	orderItem,
 	orderNotification,
 	orders,
-	skus,
 	user,
 } from "#/db/schema";
 import { cart } from "#/features/cart/cart.server";
 import { validShippingRule } from "#/features/shipping/shipping";
+import { ensure } from "#/server/public-error";
 import {
 	type CheckoutView,
 	QUOTE_LIFETIME_MS,
@@ -20,10 +20,6 @@ import { checkoutPricing } from "./checkout-config.server";
 import { calculateQuote, restoreCheckoutQuote } from "./checkout-quote.server";
 import { readPaymentProof } from "./payment-proof.server";
 
-export class CheckoutError extends Error {}
-function ensure(value: unknown, message: string): asserts value {
-	if (!value) throw new CheckoutError(message);
-}
 const mine = (userId: string, id: string) =>
 	and(eq(checkoutSession.id, id), eq(checkoutSession.userId, userId));
 const publicColumns = {
@@ -111,11 +107,7 @@ export async function prepareCheckout(
 			destination.success,
 			"Select a valid U.S. delivery address with a ZIP code.",
 		);
-		const items = await cart.getForCheckout().catch(() => {
-			throw new CheckoutError(
-				"Some cart items are no longer available. Please review your cart.",
-			);
-		});
+		const items = await cart.getForCheckout();
 		ensure(items.length, "Your cart is empty");
 		ensure(
 			items.every(
@@ -141,9 +133,7 @@ export async function uploadProof(userId: string, id: string, file: File) {
 	// Verify ownership before reading the file into memory.
 	const current = await getCheckout(userId, id);
 	ensure(!current.submittedAt, "This order has already been submitted.");
-	const proof = await readPaymentProof(file).catch(() => {
-		throw new CheckoutError("Use a PNG, JPEG or WebP image up to 2 MB.");
-	});
+	const proof = await readPaymentProof(file);
 	await db.transaction(async (tx) => {
 		const [row] = await tx
 			.select({ submittedAt: checkoutSession.submittedAt })
@@ -192,32 +182,18 @@ export async function submitCheckout(userId: string, id: string) {
 			customerEmail: customer.email,
 			createdAt: placedAt,
 		});
-		// Preserve the purchased snapshot even if a catalog SKU has since been removed.
-		const availableSkus = await tx
-			.select({ id: skus.id, color: skus.color, size: skus.size })
-			.from(skus)
-			.where(
-				inArray(
-					skus.id,
-					draft.quote.lines.map((line) => line.id),
-				),
-			)
-			.for("key share");
-		const skuById = new Map(availableSkus.map((sku) => [sku.id, sku]));
+		// Keep the original identity and variant even after the Redis deal expires.
 		await tx.insert(orderItem).values(
-			draft.quote.lines.map((line) => {
-				const sku = skuById.get(line.id);
-				return {
-					orderId: id,
-					skuId: sku?.id ?? null,
-					name: line.name,
-					price: line.usdPrice,
-					quantity: line.quantity,
-					imageUrl: line.image,
-					color: sku?.color,
-					size: sku?.size,
-				};
-			}),
+			draft.quote.lines.map((line) => ({
+				orderId: id,
+				skuId: line.id,
+				name: line.name,
+				price: line.usdPrice,
+				quantity: line.quantity,
+				imageUrl: line.image,
+				color: line.color,
+				size: line.size,
+			})),
 		);
 		await tx.insert(orderNotification).values({ orderId: id });
 		await tx

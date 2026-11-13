@@ -4,20 +4,20 @@ const mocks = vi.hoisted(() => ({
 	rows: vi.fn(),
 	entries: vi.fn(),
 	rate: vi.fn(),
+	eval: vi.fn(),
 }));
 vi.mock("@tanstack/react-start/server", () => ({
 	getCookie: () => "00000000-0000-4000-8000-000000000001",
 	setCookie: vi.fn(),
 }));
-vi.mock("#/db", () => ({
-	db: {
-		select: () => ({
-			from: () => ({ innerJoin: () => ({ where: mocks.rows }) }),
-		}),
-	},
+vi.mock("#/features/catalog/catalog-read.server", () => ({
+	findCatalogSkus: mocks.rows,
+}));
+vi.mock("#/features/search/catalog-index.server", () => ({
+	ensureCatalogReady: vi.fn(),
 }));
 vi.mock("#/server/redis.server", () => ({
-	getRedis: async () => ({ hGetAll: mocks.entries }),
+	getRedis: async () => ({ hGetAll: mocks.entries, eval: mocks.eval }),
 }));
 vi.mock("#/features/checkout/exchange-rate.server", () => ({
 	getGelPerUsd: mocks.rate,
@@ -99,4 +99,39 @@ it("does not need an exchange rate for a USD cart", async () => {
 	]);
 	expect((await cart.get())[0]?.shipping?.estimatedUnitUsd).toBe(5000);
 	expect(mocks.rate).not.toHaveBeenCalled();
+});
+
+it("reports missing saved SKUs as an actionable availability error", async () => {
+	mocks.entries.mockResolvedValue({ stale: "1" });
+	mocks.rows.mockResolvedValue([]);
+	await expect(cart.getForCheckout()).rejects.toMatchObject({
+		name: "PublicError",
+		message:
+			"Some cart items are no longer available. Please review your cart.",
+	});
+});
+
+it("exposes stale entries even when no displayable items remain", async () => {
+	mocks.entries.mockResolvedValue({ missing: "2", b: "NaN" });
+	const snapshot = await cart.getSnapshot();
+	expect(snapshot.items).toEqual([]);
+	expect(snapshot.unavailableIds).toEqual(["missing", "b"]);
+	expect(mocks.eval).not.toHaveBeenCalled();
+});
+it("removes only entries still unavailable at recovery time", async () => {
+	mocks.entries.mockResolvedValue({ a: "2", missing: "1", b: "0" });
+	await cart.removeUnavailable();
+	expect(mocks.eval).toHaveBeenCalledWith(expect.any(String), {
+		keys: ["cart:00000000-0000-4000-8000-000000000001"],
+		arguments: ["missing", "1", "b", "0"],
+	});
+});
+it("does not remove anything when the catalog lookup fails", async () => {
+	mocks.rows.mockRejectedValue(new Error("redis unavailable"));
+	await expect(cart.removeUnavailable()).rejects.toThrow("redis unavailable");
+	expect(mocks.eval).not.toHaveBeenCalled();
+});
+it("retains an item that became available again before recovery", async () => {
+	await cart.removeUnavailable();
+	expect(mocks.eval).not.toHaveBeenCalled();
 });
