@@ -1,4 +1,4 @@
-name: 2o-dev
+name: zipwit-dev
 
 x-app-env: &app-env
   env_file:
@@ -8,10 +8,21 @@ x-app-env: &app-env
     DB_HOST: db
     DB_PORT: "5432"
     DB_SSL: "false"
-    REDIS_HOST: redis
-    REDIS_PORT: "6379"
+    REDIS_CLUSTER_NODES: redis://redis-1:6379,redis://redis-2:6379,redis://redis-3:6379
     BETTER_AUTH_URL: http://localhost:3000
     SITE_URL: http://localhost:3000
+
+x-redis-node: &redis-node
+  image: redis:8.10.2-alpine
+  restart: unless-stopped
+  configs:
+    - source: redis-cluster-config
+      target: /etc/redis/cluster.conf
+  healthcheck:
+    test: ["CMD", "redis-cli", "ping"]
+    interval: 5s
+    timeout: 3s
+    retries: 10
 
 services:
   db:
@@ -29,15 +40,56 @@ services:
       timeout: 3s
       retries: 10
 
-  redis:
-    image: redis:8.10.2-alpine
+  redis-1:
+    <<: *redis-node
+    command:
+      [
+        "redis-server",
+        "/etc/redis/cluster.conf",
+        "--cluster-announce-hostname",
+        "redis-1",
+      ]
     volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+      - redis1data:/data
+
+  redis-2:
+    <<: *redis-node
+    command:
+      [
+        "redis-server",
+        "/etc/redis/cluster.conf",
+        "--cluster-announce-hostname",
+        "redis-2",
+      ]
+    volumes:
+      - redis2data:/data
+
+  redis-3:
+    <<: *redis-node
+    command:
+      [
+        "redis-server",
+        "/etc/redis/cluster.conf",
+        "--cluster-announce-hostname",
+        "redis-3",
+      ]
+    volumes:
+      - redis3data:/data
+
+  redis-cluster-init:
+    image: redis:8.10.2-alpine
+    entrypoint: ["sh", "/redis-cluster-init.sh"]
+    configs:
+      - source: redis-cluster-init-script
+        target: /redis-cluster-init.sh
+    depends_on:
+      redis-1:
+        condition: service_healthy
+      redis-2:
+        condition: service_healthy
+      redis-3:
+        condition: service_healthy
+    restart: "no"
 
   migrate:
     build:
@@ -64,8 +116,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      redis:
-        condition: service_healthy
+      redis-cluster-init:
+        condition: service_completed_successfully
 
   checkout-notifications:
     build:
@@ -98,5 +150,13 @@ services:
 
 volumes:
   pgdata:
-  redisdata:
+  redis1data:
+  redis2data:
+  redis3data:
   node_modules:
+
+configs:
+  redis-cluster-config:
+    file: ./docker/redis-cluster.conf
+  redis-cluster-init-script:
+    file: ./docker/redis-cluster-init.sh

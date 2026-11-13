@@ -10,7 +10,8 @@ type JsonCacheOptions<S extends z.ZodType> = {
 
 /**
  * Invalid or unavailable cache entries fall through to `compute`; source errors
- * still propagate. `get` writes opportunistically, while `refresh` awaits storage.
+ * still propagate. Concurrent reads share one request per process. `get` tolerates write failures;
+ * `refresh` requires storage and publishes after any older in-flight write.
  */
 export function createJsonCache<S extends z.ZodType>({
 	key,
@@ -39,21 +40,40 @@ export function createJsonCache<S extends z.ZodType>({
 		});
 	}
 
-	return {
-		async get(): Promise<Value> {
-			const cached = await read();
-			if (cached !== null) return cached;
+	let pendingRead: Promise<Value> | undefined;
+	let pendingRefresh: Promise<Value> | undefined;
 
-			const value = await compute();
-			write(value).catch((error) =>
-				console.warn(`Cache write failed (${key}):`, error),
-			);
-			return value;
+	return {
+		get(): Promise<Value> {
+			if (pendingRefresh) return pendingRefresh;
+			if (pendingRead) return pendingRead;
+			pendingRead = (async () => {
+				const cached = await read();
+				if (cached !== null) return cached;
+				const value = await compute();
+				// Keep the request shared until the cache is populated, including a slow SET.
+				await write(value).catch(() =>
+					console.warn(`Cache write failed (${key})`),
+				);
+				return value;
+			})().finally(() => {
+				pendingRead = undefined;
+			});
+			return pendingRead;
 		},
-		async refresh(): Promise<Value> {
-			const value = await compute();
-			await write(value);
-			return value;
+		refresh(): Promise<Value> {
+			if (pendingRefresh) return pendingRefresh;
+			const previous = pendingRead;
+			pendingRefresh = (async () => {
+				// Finish any older write before publishing the explicit refresh.
+				await previous?.catch(() => undefined);
+				const value = await compute();
+				await write(value);
+				return value;
+			})().finally(() => {
+				pendingRefresh = undefined;
+			});
+			return pendingRefresh;
 		},
 	};
 }

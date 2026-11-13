@@ -16,16 +16,15 @@ jobs:
   verify:
     runs-on: ubuntu-latest
 
-    services:
-      redis:
-        image: redis:8.10.2-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "15439"
+      DB_NAME: zipwit_catalog_test
+      DB_USER: catalog_test
+      DB_PASSWORD: catalog_test
+      DB_SSL: "false"
+      REDIS_CLUSTER_NODES: redis://127.0.0.1:17379,redis://127.0.0.1:17380,redis://127.0.0.1:17381
+      BETTER_AUTH_SECRET: ci-cluster-check-only-not-a-production-secret
 
     steps:
       - uses: actions/checkout@v7
@@ -47,8 +46,16 @@ jobs:
 
       - run: pnpm build
 
+      - name: Start disposable PostgreSQL and three-node Redis Cluster
+        run: docker compose -f docker-compose.cluster-test.yaml up -d --wait
+
       - run: pnpm search:check
-        env:
-          REDIS_HOST: 127.0.0.1
-          REDIS_PORT: "6379"
-          BETTER_AUTH_SECRET: ci-search-check-only-not-a-production-secret
+
+      - run: pnpm db:migrate
+        if: ${{ hashFiles('drizzle/**/migration.sql') != '' }}
+
+      - run: pnpm catalog:check
+
+      - name: Stop test services
+        if: always()
+        run: docker compose -f docker-compose.cluster-test.yaml down

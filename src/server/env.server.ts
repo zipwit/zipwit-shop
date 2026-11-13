@@ -14,6 +14,36 @@ const envSchema = z
 
 		REDIS_HOST: z.string().min(1).default("localhost"),
 		REDIS_PORT: z.coerce.number().int().min(1).max(65535).default(6379),
+		/** Comma-separated seed URLs. Unset keeps standalone Redis available for local tools. */
+		REDIS_CLUSTER_NODES: optionalString.pipe(
+			z
+				.string()
+				.transform((value) => value.split(",").map((url) => url.trim()))
+				.pipe(
+					z
+						.array(
+							z.url().refine((value) => {
+								const url = new URL(value);
+								return (
+									["redis:", "rediss:"].includes(url.protocol) &&
+									["", "/", "/0"].includes(url.pathname) &&
+									!url.search &&
+									!url.hash &&
+									!url.username &&
+									!url.password
+								);
+							}, "Use redis:// or rediss:// URLs with database 0; set credentials in REDIS_USERNAME and REDIS_PASSWORD."),
+						)
+						.min(1),
+				)
+				.optional(),
+		),
+		REDIS_USERNAME: optionalString,
+		REDIS_PASSWORD: optionalString,
+		REDIS_TLS: z
+			.enum(["true", "false"])
+			.default("false")
+			.transform((value) => value === "true"),
 
 		BETTER_AUTH_URL: z.url().default("http://localhost:3000"),
 		BETTER_AUTH_SECRET: z.string().min(32),
@@ -26,13 +56,13 @@ const envSchema = z
 
 		// Without a key, emails are logged instead of sent (required in production).
 		RESEND_API_KEY: optionalString,
-		EMAIL_FROM: z.string().min(1).default("2o <onboarding@resend.dev>"),
+		EMAIL_FROM: z
+			.string()
+			.min(1)
+			.default("Zipwit Shop <onboarding@resend.dev>"),
 
 		/** Public origin used in the sitemap. Falls back to `BETTER_AUTH_URL`. */
 		SITE_URL: optionalUrl,
-
-		/** Tawk.to embed URL; the chat widget is hidden when unset. */
-		CHAT_EMBED_URL: optionalUrl,
 
 		// Checkout stays unavailable until these are valid and NBG's exchange rate can be fetched.
 		CHECKOUT_IBAN: optionalString,

@@ -1,17 +1,21 @@
-import { createClient } from "redis";
+import { createClient, createCluster } from "redis";
 import { env } from "./env.server";
 
-const createRedisClient = () =>
-	createClient({
+const createRedisClient = () => {
+	const defaults = {
 		RESP: 2,
-		name: "2o",
+		name: "zipwit-shop",
+		username: env.REDIS_USERNAME,
+		password: env.REDIS_PASSWORD,
 		socket: {
-			host: env.REDIS_HOST,
-			port: env.REDIS_PORT,
+			...(env.REDIS_TLS ||
+			env.REDIS_CLUSTER_NODES?.some((url) => url.startsWith("rediss:"))
+				? { tls: true as const }
+				: {}),
 			connectTimeout: 1_000,
 			// Detect silent sockets, including commands already written to them.
 			socketTimeout: 10_000,
-			reconnectStrategy: (retries) =>
+			reconnectStrategy: (retries: number) =>
 				retries >= 5
 					? false
 					: Math.min(100 * 2 ** retries, 2_000) +
@@ -23,7 +27,25 @@ const createRedisClient = () =>
 		commandOptions: { timeout: 1_000 },
 		disableOfflineQueue: true,
 		commandsQueueMaxLength: 1_000,
-	});
+	} as const;
+	return env.REDIS_CLUSTER_NODES
+		? createCluster({
+				RESP: 2,
+				rootNodes: env.REDIS_CLUSTER_NODES.map((url) => ({ url })),
+				defaults,
+				// Prices, stock, carts and sessions must read the primary after a write.
+				useReplicas: false,
+				commandOptions: { timeout: 1_000 },
+			})
+		: createClient({
+				...defaults,
+				socket: {
+					...defaults.socket,
+					host: env.REDIS_HOST,
+					port: env.REDIS_PORT,
+				},
+			});
+};
 
 let client: Promise<ReturnType<typeof createRedisClient>> | undefined;
 
@@ -56,3 +78,38 @@ export const getRedis = () => {
 	client = pending;
 	return pending;
 };
+
+/** Raw commands have different signatures on standalone and Cluster clients. */
+export async function redisCommand(args: string[]) {
+	const redis = await getRedis();
+	return "masters" in redis
+		? redis.sendCommand(undefined, false, args)
+		: redis.sendCommand(args);
+}
+
+/** SCAN is node-local. Visit every primary; use the router for subsequent key operations. */
+export async function* scanRedisKeys(pattern: string) {
+	const redis = await getRedis();
+	const nodes =
+		"masters" in redis
+			? await Promise.all(redis.masters.map((node) => redis.nodeClient(node)))
+			: [redis];
+	for (const node of nodes) {
+		let cursor = "0";
+		do {
+			const page = await node.scan(cursor, { MATCH: pattern, COUNT: 500 });
+			cursor = String(page.cursor);
+			if (page.keys.length) yield page.keys;
+		} while (cursor !== "0");
+	}
+}
+
+/** DEL with unrelated keys is CROSSSLOT in Cluster. Bound concurrent single-key commands. */
+export async function deleteRedisKeys(keys: string[]) {
+	const redis = await getRedis();
+	for (let offset = 0; offset < keys.length; offset += 100) {
+		await Promise.all(
+			keys.slice(offset, offset + 100).map((key) => redis.del(key)),
+		);
+	}
+}

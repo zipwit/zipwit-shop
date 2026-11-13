@@ -26,7 +26,7 @@ import {
 	sortOptions,
 } from "#/features/search/catalog-query";
 import { ft } from "#/features/search/redis-ft.server";
-import { getRedis } from "#/server/redis.server";
+import { deleteRedisKeys, getRedis, redisCommand } from "#/server/redis.server";
 
 const run = Date.now().toString(36);
 const INDEX = `smoke_${run}`;
@@ -145,9 +145,7 @@ const checks: Check[] = [
 		name: "Search and JSON modules are loaded",
 		hint: "Use the redis:8.10.2-alpine image. If you keep a `command:` override in docker-compose.dev.yaml or docker-compose.prod.yaml, it may be skipping the module flags the image normally passes.",
 		test: async () => {
-			const list = JSON.stringify(
-				await (await getRedis()).sendCommand(["MODULE", "LIST"]),
-			);
+			const list = JSON.stringify(await redisCommand(["MODULE", "LIST"]));
 			if (!/search/i.test(list)) throw new Error("no search module");
 			if (!/json/i.test(list)) throw new Error("no json module");
 		},
@@ -246,7 +244,7 @@ const checks: Check[] = [
 	},
 	{
 		name: "Facet counts split multi-value tags (sizes)",
-		hint: "GROUPBY on the multi-value sizes tag failed or returned values expandFacet can't split. If it keeps failing, derive size and color options from Postgres (a cached SELECT DISTINCT).",
+		hint: "GROUPBY on the multi-value sizes tag failed or returned values expandFacet can't split. Check the Redis JSON tag projection and rebuild derived Search data.",
 		test: async () => {
 			const rows = await ft.aggregate(INDEX, "*", facetOptions("sizes"));
 			same(
@@ -287,17 +285,17 @@ async function main() {
 
 	try {
 		await ft.create(INDEX, PREFIX, schemaArgs());
-		const batch = redis.multi();
-		for (const doc of buildCatalogDocs(fixture)) {
-			batch.addCommand(["JSON.SET", PREFIX + doc.id, "$", JSON.stringify(doc)]);
-		}
-		await batch.execAsPipeline();
+		await Promise.all(
+			buildCatalogDocs(fixture).map((doc) =>
+				redis.json.set(PREFIX + doc.id, "$", doc),
+			),
+		);
 	} catch (error) {
 		console.log(
 			`✗ Could not create the test index: ${error instanceof Error ? error.message : error}`,
 		);
 		console.log(
-			"  Is Redis running with the Search and JSON modules? (docker compose -f docker-compose.dev.yaml up -d redis)",
+			"  Is Redis running with the Search and JSON modules? (docker compose -f docker-compose.dev.yaml up -d redis-cluster-init)",
 		);
 		process.exit(1);
 	}
@@ -317,7 +315,9 @@ async function main() {
 	}
 
 	await ft.dropIndex(INDEX).catch(() => undefined);
-	await redis.del(buildCatalogDocs(fixture).map((doc) => PREFIX + doc.id));
+	await deleteRedisKeys(
+		buildCatalogDocs(fixture).map((doc) => PREFIX + doc.id),
+	);
 
 	console.log(
 		failed === 0 ? "\nAll checks passed." : `\n${failed} check(s) failed.`,

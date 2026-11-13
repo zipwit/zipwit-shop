@@ -1,10 +1,20 @@
 import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createClient } = vi.hoisted(() => ({ createClient: vi.fn() }));
-vi.mock("redis", () => ({ createClient }));
+const { createClient, createCluster, settings } = vi.hoisted(() => ({
+	createClient: vi.fn(),
+	createCluster: vi.fn(),
+	settings: {
+		REDIS_HOST: "localhost",
+		REDIS_PORT: 6379,
+		REDIS_CLUSTER_NODES: undefined as string[] | undefined,
+		REDIS_USERNAME: undefined as string | undefined,
+		REDIS_PASSWORD: undefined as string | undefined,
+	},
+}));
+vi.mock("redis", () => ({ createClient, createCluster }));
 vi.mock("./env.server", () => ({
-	env: { REDIS_HOST: "localhost", REDIS_PORT: 6379 },
+	env: settings,
 }));
 
 function connection() {
@@ -18,11 +28,67 @@ function connection() {
 beforeEach(() => {
 	vi.resetModules();
 	createClient.mockReset();
+	createCluster.mockReset();
+	settings.REDIS_CLUSTER_NODES = undefined;
+	settings.REDIS_USERNAME = undefined;
+	settings.REDIS_PASSWORD = undefined;
 });
 
 afterEach(() => vi.restoreAllMocks());
 
 describe("getRedis", () => {
+	it("uses Cluster seed nodes and primary reads, with credentials inherited by every node", async () => {
+		settings.REDIS_CLUSTER_NODES = [
+			"redis://one:6379",
+			"redis://two:6379",
+			"redis://three:6379",
+		];
+		settings.REDIS_USERNAME = "shop";
+		settings.REDIS_PASSWORD = "fixture-only";
+		const cluster = connection();
+		createCluster.mockReturnValue(cluster);
+		const { getRedis } = await import("./redis.server");
+		await expect(getRedis()).resolves.toBe(cluster);
+		expect(createClient).not.toHaveBeenCalled();
+		expect(createCluster).toHaveBeenCalledWith(
+			expect.objectContaining({
+				rootNodes: settings.REDIS_CLUSTER_NODES.map((url) => ({ url })),
+				useReplicas: false,
+				defaults: expect.objectContaining({
+					username: "shop",
+					password: "fixture-only",
+					disableOfflineQueue: true,
+				}),
+			}),
+		);
+	});
+
+	it("scans all primaries and deletes keys individually across slots", async () => {
+		settings.REDIS_CLUSTER_NODES = ["redis://one:6379"];
+		const nodes = [
+			{
+				scan: vi
+					.fn()
+					.mockResolvedValueOnce({ cursor: "5", keys: ["a"] })
+					.mockResolvedValueOnce({ cursor: "0", keys: ["b"] }),
+			},
+			{ scan: vi.fn().mockResolvedValue({ cursor: "0", keys: ["c"] }) },
+			{ scan: vi.fn().mockResolvedValue({ cursor: "0", keys: [] }) },
+		];
+		const cluster = Object.assign(connection(), {
+			masters: nodes,
+			nodeClient: vi.fn(async (node) => node),
+			del: vi.fn(),
+		});
+		createCluster.mockReturnValue(cluster);
+		const { scanRedisKeys, deleteRedisKeys } = await import("./redis.server");
+		const keys: string[] = [];
+		for await (const page of scanRedisKeys("product:*")) keys.push(...page);
+		expect(keys).toEqual(["a", "b", "c"]);
+		expect(cluster.nodeClient).toHaveBeenCalledTimes(3);
+		await deleteRedisKeys(keys);
+		expect(cluster.del.mock.calls).toEqual([["a"], ["b"], ["c"]]);
+	});
 	it("shares a single connection between concurrent callers", async () => {
 		const redis = connection();
 		createClient.mockReturnValue(redis);

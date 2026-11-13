@@ -8,6 +8,26 @@ const { parseEnv } = await import("./env.server");
 const base = { BETTER_AUTH_SECRET: "x".repeat(32) };
 
 describe("parseEnv", () => {
+	it("validates Cluster seeds without accepting non-Redis URLs, credentials or other databases", () => {
+		expect(
+			parseEnv({
+				...base,
+				REDIS_CLUSTER_NODES:
+					"redis://one:6379, redis://two:6379,redis://three:6379",
+			}).REDIS_CLUSTER_NODES,
+		).toEqual(["redis://one:6379", "redis://two:6379", "redis://three:6379"]);
+		for (const nodes of [
+			"https://one:6379",
+			"redis://one:6379/1",
+			"redis://one:6379,",
+			"redis://user:password@one:6379",
+		]) {
+			expect(() => parseEnv({ ...base, REDIS_CLUSTER_NODES: nodes })).toThrow();
+		}
+		expect(
+			parseEnv({ ...base, REDIS_CLUSTER_NODES: " " }).REDIS_CLUSTER_NODES,
+		).toBeUndefined();
+	});
 	it("defaults Redis locally and accepts an explicit host and port", () => {
 		expect(parseEnv(base)).toMatchObject({
 			REDIS_HOST: "localhost",
@@ -32,22 +52,25 @@ describe("parseEnv", () => {
 		const env = parseEnv({
 			...base,
 			GOOGLE_CLIENT_ID: "  ",
-			CHAT_EMBED_URL: "",
+			SITE_URL: "",
 		});
 		expect(env.GOOGLE_CLIENT_ID).toBeUndefined();
-		expect(env.CHAT_EMBED_URL).toBeUndefined();
+		expect(env.SITE_URL).toBe(env.BETTER_AUTH_URL);
 	});
 
 	it("falls back to BETTER_AUTH_URL for SITE_URL", () => {
-		const env = parseEnv({ ...base, BETTER_AUTH_URL: "https://2o.ge" });
-		expect(env.SITE_URL).toBe("https://2o.ge");
+		const env = parseEnv({
+			...base,
+			BETTER_AUTH_URL: "https://zipwit.example",
+		});
+		expect(env.SITE_URL).toBe("https://zipwit.example");
 		expect(
 			parseEnv({
 				...base,
-				BETTER_AUTH_URL: "https://2o.ge",
-				SITE_URL: "https://www.2o.ge",
+				BETTER_AUTH_URL: "https://zipwit.example",
+				SITE_URL: "https://www.zipwit.example",
 			}).SITE_URL,
-		).toBe("https://www.2o.ge");
+		).toBe("https://www.zipwit.example");
 	});
 
 	it("rejects half-configured social providers", () => {
@@ -73,6 +96,6 @@ describe("parseEnv", () => {
 
 	it("rejects a short auth secret and a malformed URL", () => {
 		expect(() => parseEnv({ BETTER_AUTH_SECRET: "short" })).toThrow();
-		expect(() => parseEnv({ ...base, CHAT_EMBED_URL: "not a url" })).toThrow();
+		expect(() => parseEnv({ ...base, SITE_URL: "not a url" })).toThrow();
 	});
 });
