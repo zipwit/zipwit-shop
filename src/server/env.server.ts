@@ -70,6 +70,7 @@ const envSchema = z
 		WAREHOUSE_SHIPPING_RULES: optionalString,
 		TELEGRAM_BOT_TOKEN: optionalString,
 		TELEGRAM_CHAT_ID: optionalString,
+		OPS_ALERT_EMAIL: optionalString.pipe(z.email().optional()),
 	})
 	.refine(
 		(e) => Boolean(e.GOOGLE_CLIENT_ID) === Boolean(e.GOOGLE_CLIENT_SECRET),

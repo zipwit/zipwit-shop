@@ -22,6 +22,7 @@ export const privateRequest = createMiddleware({ type: "function" }).server(
 						: undefined;
 				console.error("Private request failed", {
 					reference,
+					name: error instanceof Error ? error.name : typeof error,
 					code:
 						typeof code === "string" && /^[A-Z0-9_]{2,32}$/.test(code)
 							? code

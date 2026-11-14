@@ -1,6 +1,7 @@
 import { defineRelations, sql } from "drizzle-orm";
 import {
 	boolean,
+	check,
 	index,
 	integer,
 	jsonb,
@@ -65,7 +66,10 @@ export const orders = pgTable(
 			.notNull(),
 		...timestamps,
 	},
-	(t) => [index("orders_user_idx").on(t.userId)],
+	(t) => [
+		index("orders_user_idx").on(t.userId),
+		check("orders_total_positive", sql`${t.total} > 0`),
+	],
 );
 
 /** Private, server-owned checkout draft. Its UUID becomes the final order ID. */
@@ -104,7 +108,11 @@ export const orderNotification = pgTable(
 		leaseUntil: timestamp("lease_until"),
 		sentAt: timestamp("sent_at"),
 	},
-	(t) => [index("order_notification_due_idx").on(t.nextAttemptAt)],
+	(t) => [
+		index("order_notification_due_idx")
+			.on(t.nextAttemptAt)
+			.where(sql`${t.sentAt} is null`),
+	],
 );
 
 export const orderItem = pgTable(
@@ -123,7 +131,11 @@ export const orderItem = pgTable(
 		size: text("size"),
 		imageUrl: text("image_url"),
 	},
-	(t) => [index("order_item_order_idx").on(t.orderId)],
+	(t) => [
+		index("order_item_order_idx").on(t.orderId),
+		check("order_item_quantity_positive", sql`${t.quantity} > 0`),
+		check("order_item_price_not_negative", sql`${t.price} >= 0`),
+	],
 );
 
 export const address = pgTable(

@@ -33,6 +33,7 @@ vi.mock("@tanstack/react-start/server", () => ({
 
 beforeEach(() => {
 	vi.resetAllMocks();
+	vi.unstubAllEnvs();
 	vi.mocked(getRequest).mockReturnValue(new Request("https://example.com/"));
 });
 
@@ -47,6 +48,7 @@ it.each([undefined, "invalid", "EN"])(
 it.each(["ka", "en"] as const)(
 	"persists and reads %s on the next request",
 	async (locale) => {
+		vi.stubEnv("NODE_ENV", "production");
 		await setLocaleFn({ data: locale });
 		expect(setCookie).toHaveBeenCalledWith("zipwit-locale", locale, {
 			path: "/",

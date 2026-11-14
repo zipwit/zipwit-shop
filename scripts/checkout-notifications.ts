@@ -1,7 +1,12 @@
+import { writeFile } from "node:fs/promises";
 import {
 	cleanExpiredDrafts,
 	deliverOrderNotification,
 } from "../src/features/checkout/telegram.server";
+
+const HEARTBEAT_FILE = "/tmp/worker-heartbeat";
+const beat = () =>
+	writeFile(HEARTBEAT_FILE, String(Date.now())).catch(() => undefined);
 
 let stopping = false;
 process.on("SIGTERM", () => {
@@ -12,6 +17,7 @@ process.on("SIGINT", () => {
 });
 let lastCleanup = 0;
 while (!stopping) {
+	await beat();
 	try {
 		if (Date.now() - lastCleanup > 24 * 60 * 60 * 1000) {
 			await cleanExpiredDrafts();
@@ -19,8 +25,10 @@ while (!stopping) {
 		}
 		const processed = await deliverOrderNotification();
 		if (processed) continue;
-	} catch {
-		console.error("Order notification worker failed; retrying");
+	} catch (error) {
+		console.error("Order notification worker failed; retrying", {
+			name: error instanceof Error ? error.name : typeof error,
+		});
 	}
 	await new Promise((resolve) => setTimeout(resolve, 5_000));
 }

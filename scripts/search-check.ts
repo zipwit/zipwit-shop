@@ -45,6 +45,7 @@ const fixture: SourceProduct[] = [
 		id: "a",
 		storeId: "a".repeat(64),
 		slug: "a",
+		updatedAt: new Date(3_000),
 		name: "Nike Air Runner",
 		brand: "Nike",
 		department: "men",
@@ -59,6 +60,7 @@ const fixture: SourceProduct[] = [
 		id: "b",
 		storeId: "b".repeat(64),
 		slug: "b",
+		updatedAt: new Date(2_000),
 		name: "New Balance Retro 90",
 		brand: "New Balance",
 		department: "women",
@@ -70,6 +72,7 @@ const fixture: SourceProduct[] = [
 		id: "c",
 		storeId: "a".repeat(64),
 		slug: "c",
+		updatedAt: new Date(1_000),
 		name: "Adidas Essential Hoodie",
 		brand: "Adidas",
 		department: "men",
@@ -262,6 +265,21 @@ const checks: Check[] = [
 			const [lo] = (await search({ sort: "price-asc", limit: 1 })).docs;
 			const [hi] = (await search({ sort: "price-desc", limit: 1 })).docs;
 			same([lo?.price, hi?.price], [5000, 12000]);
+		},
+	},
+	{
+		name: "Sort by last update, newest first",
+		hint: "updatedAt must be a SORTABLE numeric field; the sitemap orders products by it.",
+		test: async () => {
+			const { docs } = await ft.search<CatalogDoc>(INDEX, "*", {
+				sort: { BY: "updatedAt", DIRECTION: "DESC" },
+				offset: 0,
+				limit: 10,
+			});
+			same(
+				docs.map((doc) => doc.id),
+				["a", "b", "c"],
+			);
 		},
 	},
 ];

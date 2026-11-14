@@ -4,8 +4,8 @@ import { catalogSummary } from "./catalog-projection.server";
 import { getCatalogProductById } from "./catalog-read.server";
 import {
 	type CatalogRecord,
+	catalogInputSchema,
 	catalogKeys,
-	catalogRecordSchema,
 } from "./catalog-record";
 import {
 	claimPointer,
@@ -27,7 +27,7 @@ const pointerKeys = (record: CatalogRecord) => [
  * cannot overwrite a newer revision; SKU and slug pointers are validated on reads.
  */
 export async function putCatalogProduct(input: CatalogRecord) {
-	const record = catalogRecordSchema.parse(input);
+	const record = catalogInputSchema.parse(input);
 	record.updatedAt = new Date(record.updatedAt).toISOString();
 	await ensureCatalogReady();
 	const redis = await getRedis();
@@ -40,8 +40,17 @@ export async function putCatalogProduct(input: CatalogRecord) {
 	}
 	const pointers = pointerKeys(record);
 	const value = pointerFor(record);
-	for (const key of pointers)
-		await redis.eval(claimPointer, { keys: [key], arguments: [value] });
+	const claimed: string[] = [];
+	try {
+		for (const key of pointers) {
+			await redis.eval(claimPointer, { keys: [key], arguments: [value] });
+			claimed.push(key);
+		}
+	} catch (error) {
+		for (const key of claimed)
+			await redis.eval(releasePointer, { keys: [key], arguments: [value] });
+		throw error;
+	}
 	const summary = catalogSummary(record);
 	const written = await redis.eval(writeProduct, {
 		keys: [

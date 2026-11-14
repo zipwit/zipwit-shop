@@ -5,11 +5,14 @@ const state = vi.hoisted(() => ({
 	rows: [] as unknown[][],
 	updates: [] as Record<string, unknown>[],
 	fetch: vi.fn(),
+	alert: vi.fn(),
 }));
+vi.mock("#/features/auth/email.server", () => ({ sendEmail: state.alert }));
 vi.mock("#/server/env.server", () => ({
 	env: {
 		TELEGRAM_BOT_TOKEN: "secret-test-token",
 		TELEGRAM_CHAT_ID: "private-chat",
+		OPS_ALERT_EMAIL: "ops@example.com",
 	},
 }));
 vi.mock("#/db", () => {
@@ -147,4 +150,21 @@ it("does nothing when no queue job is eligible", async () => {
 	state.rows.push([]);
 	expect(await deliverOrderNotification()).toBe(false);
 	expect(state.fetch).not.toHaveBeenCalled();
+});
+
+it("emails ops once when delivery keeps failing, without customer data", async () => {
+	state.rows.push([{ ...job, attempts: 4 }], [order], [draft]);
+	state.fetch.mockImplementation(async () =>
+		Response.json({ ok: false }, { status: 500 }),
+	);
+	const log = vi.spyOn(console, "error").mockImplementation(() => {});
+	await deliverOrderNotification();
+	expect(state.alert).toHaveBeenCalledOnce();
+	expect(JSON.stringify(state.alert.mock.calls)).not.toContain(
+		"buyer@example.com",
+	);
+	state.rows.push([{ ...job, attempts: 5 }], [order], [draft]);
+	await deliverOrderNotification();
+	expect(state.alert).toHaveBeenCalledOnce();
+	log.mockRestore();
 });

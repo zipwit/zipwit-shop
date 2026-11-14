@@ -8,7 +8,7 @@
 const FIELDS = {
 	q: { path: "$.searchText", type: "TEXT" },
 	checkedAt: { path: "$.checkedAt", type: "NUMERIC" },
-	updatedAt: { path: "$.updatedAt", type: "NUMERIC" },
+	updatedAt: { path: "$.updatedAt", type: "NUMERIC", sortable: true },
 	store: { path: "$.storeId", type: "TAG" },
 	brand: { path: "$.brand", type: "TAG" },
 	department: { path: "$.department", type: "TAG" },

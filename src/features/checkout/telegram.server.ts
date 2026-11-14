@@ -1,6 +1,7 @@
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { checkoutSession, orderNotification, orders } from "#/db/schema";
+import { sendEmail } from "#/features/auth/email.server";
 import { env } from "#/server/env.server";
 import { orderMessages } from "./telegram-message";
 
@@ -27,6 +28,21 @@ async function telegram(
 		result.ok !== true
 	)
 		throw new Error("Telegram rejected notification");
+}
+
+const ALERT_AFTER_ATTEMPTS = 5;
+
+async function alertOps(orderId: string, attempts: number) {
+	if (!env.OPS_ALERT_EMAIL || attempts !== ALERT_AFTER_ATTEMPTS) return;
+	try {
+		await sendEmail({
+			to: env.OPS_ALERT_EMAIL,
+			subject: "Order notification is failing",
+			html: `<p>Telegram delivery for order <code>${orderId}</code> has failed ${attempts} times. Check the order team's Telegram chat and the checkout-notifications logs.</p>`,
+		});
+	} catch {
+		console.error("Ops alert email failed", { orderId });
+	}
 }
 
 /** Durable at-least-once delivery; progress is saved after each accepted message. */
@@ -128,6 +144,7 @@ export async function deliverOrderNotification(orderId?: string) {
 		console.error("Telegram notification will be retried", {
 			orderId: job.orderId,
 		});
+		await alertOps(job.orderId, job.attempts + 1);
 		await db
 			.update(orderNotification)
 			.set({

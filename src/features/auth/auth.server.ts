@@ -6,6 +6,7 @@ import { site } from "#/data/site";
 import { db } from "#/db";
 import * as schema from "#/db/auth-schema";
 import { emailTemplates, sendEmail } from "#/features/auth/email.server";
+import { requestLocale } from "#/features/auth/request-locale.server";
 import { socialProviders } from "#/features/auth/social-providers.server";
 import { env } from "#/server/env.server";
 import { getRedis } from "#/server/redis.server";
@@ -54,7 +55,7 @@ export const auth = betterAuth({
 			sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
 				await sendEmail({
 					to: user.email,
-					...emailTemplates.approveEmailChange(newEmail, url),
+					...emailTemplates.approveEmailChange(newEmail, url, requestLocale()),
 				});
 			},
 		},
@@ -81,7 +82,10 @@ export const auth = betterAuth({
 			disableSignUp: true,
 			storeOTP: "hashed",
 			async sendVerificationOTP({ email, otp, type }) {
-				await sendEmail({ to: email, ...emailTemplates.code(otp, type) });
+				const message = emailTemplates.code(otp, type, requestLocale());
+				sendEmail({ to: email, ...message }).catch(() => {
+					console.error("Verification email failed to send");
+				});
 			},
 		}),
 		tanstackStartCookies(),

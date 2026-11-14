@@ -17,6 +17,7 @@ RUN pnpm build
 
 FROM build AS migrate
 ENV NODE_ENV=production
+USER node
 CMD ["pnpm", "db:migrate"]
 
 FROM node:26.12.1-alpine AS app

@@ -23,6 +23,7 @@ vi.mock("@better-auth/drizzle-adapter/relations-v2", () => ({
 	drizzleAdapter: () => undefined,
 }));
 vi.mock("#/server/redis.server", () => ({ getRedis: vi.fn() }));
+vi.mock("./request-locale.server", () => ({ requestLocale: () => "ka" }));
 vi.mock("#/server/env.server", () => ({
 	env: {
 		BETTER_AUTH_URL: "http://localhost:3000",

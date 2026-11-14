@@ -26,8 +26,19 @@ export function parseShippingRules(value: unknown) {
 	}
 }
 
+type Rules = ReturnType<typeof parseShippingRules>;
+let memo: { raw: string | undefined; rules: Rules } | undefined;
+
+function shippingRules() {
+	const raw = env.WAREHOUSE_SHIPPING_RULES;
+	if (!memo || memo.raw !== raw) {
+		memo = { raw, rules: parseShippingRules(raw) };
+	}
+	return memo.rules;
+}
+
 export function warehouseShipping(warehouse: string) {
-	const rules = parseShippingRules(env.WAREHOUSE_SHIPPING_RULES);
+	const rules = shippingRules();
 	return {
 		groupId: publicStoreId(warehouse),
 		rule:

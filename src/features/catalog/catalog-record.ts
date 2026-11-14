@@ -37,6 +37,18 @@ export const catalogRecordSchema = z.object({
 export type CatalogRecord = z.infer<typeof catalogRecordSchema>;
 export type CatalogSku = CatalogRecord["skus"][number];
 
+const imageAllowed = (url: string) =>
+	url.startsWith("https://") ||
+	(process.env.NODE_ENV !== "production" && url.startsWith("data:image/"));
+
+export const catalogInputSchema = catalogRecordSchema.refine(
+	(record) =>
+		record.skus.every(
+			(sku) => sku.imageUrl === null || imageAllowed(sku.imageUrl),
+		),
+	"Image URLs must use https.",
+);
+
 export const skuAvailable = (sku: CatalogSku, now = Date.now()) =>
 	sku.inStock &&
 	(!sku.sourceExpiresAt || Date.parse(sku.sourceExpiresAt) > now);

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { escape as escapeXml } from "es-toolkit";
+import { z } from "zod";
 import { categorySlugs, departmentSlugs } from "#/data/catalog";
 import type { CatalogDoc } from "#/features/search/catalog-doc";
 import {
@@ -8,6 +9,7 @@ import {
 } from "#/features/search/catalog-index.server";
 import { ft } from "#/features/search/redis-ft.server";
 import { env } from "#/server/env.server";
+import { createJsonCache } from "#/server/json-cache.server";
 
 /** Per the sitemap protocol, one file lists at most 50,000 URLs. */
 const MAX_SITEMAP_URLS = 50_000;
@@ -28,16 +30,28 @@ const urlEntry = (path: string, lastModified?: Date) =>
 		lastModified ? `<lastmod>${lastModified.toISOString()}</lastmod>` : ""
 	}</url>`;
 
+const sitemapProducts = createJsonCache({
+	key: "catalog:sitemap:v1",
+	ttlSeconds: 300,
+	schema: z.array(
+		z.object({ slug: z.string(), updatedAt: z.number().optional() }),
+	),
+	compute: async () => {
+		await ensureCatalogReady();
+		const { docs } = await ft.search<CatalogDoc>(INDEX, "*", {
+			sort: { BY: "updatedAt", DIRECTION: "DESC" },
+			offset: 0,
+			limit: MAX_SITEMAP_URLS - staticPaths.length,
+		});
+		return docs.map(({ slug, updatedAt }) => ({ slug, updatedAt }));
+	},
+});
+
 export const Route = createFileRoute("/sitemap.xml")({
 	server: {
 		handlers: {
 			GET: async () => {
-				await ensureCatalogReady();
-				const { docs: products } = await ft.search<CatalogDoc>(INDEX, "*", {
-					sort: { BY: "updatedAt", DIRECTION: "DESC" },
-					offset: 0,
-					limit: MAX_SITEMAP_URLS - staticPaths.length,
-				});
+				const products = await sitemapProducts.get();
 
 				const entries = [
 					...staticPaths.map((path) => urlEntry(path)),

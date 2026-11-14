@@ -139,6 +139,7 @@ it("hides infrastructure errors but keeps safe checkout errors", async () => {
 		);
 		expect(log).toHaveBeenCalledExactlyOnceWith("Private request failed", {
 			reference: expect.any(String),
+			name: "Error",
 			code: "UNKNOWN",
 		});
 		expect(mocks.header).toHaveBeenCalledWith(

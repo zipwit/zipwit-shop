@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
 	getCookie,
-	getRequest,
 	setCookie,
 	setResponseHeader,
 } from "@tanstack/react-start/server";
@@ -23,7 +22,7 @@ export const setLocaleFn = createServerFn({ method: "POST" })
 			maxAge: 60 * 60 * 24 * 365,
 			httpOnly: true,
 			sameSite: "lax",
-			secure: new URL(getRequest().url).protocol === "https:",
+			secure: process.env.NODE_ENV === "production",
 		});
 		return data;
 	});
