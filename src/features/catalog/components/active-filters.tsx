@@ -4,6 +4,7 @@ import { Button } from "#/components/ui/button";
 import {
 	type CatalogFilters,
 	DEFAULT_FILTERS,
+	type UpdateCatalogFilters,
 } from "#/features/search/catalog-filters";
 import { colorLabel } from "#/i18n/color-label";
 import { type Locale, useLocale } from "#/i18n/locale";
@@ -11,7 +12,11 @@ import { sizeLabel } from "#/i18n/size-label";
 import { useTranslation } from "#/i18n/translate";
 import { usePriceFormatter } from "#/lib/price";
 
-type Chip = { key: string; label: string; clear: Partial<CatalogFilters> };
+type Chip = {
+	key: string;
+	label: string;
+	clear: (current: CatalogFilters) => Partial<CatalogFilters>;
+};
 
 function priceLabel(
 	{ minPrice, maxPrice }: CatalogFilters,
@@ -43,38 +48,52 @@ function chipsFor(
 	const chips: Chip[] = [];
 
 	if (filters.q) {
-		chips.push({ key: "q", label: `“${filters.q}”`, clear: { q: undefined } });
+		chips.push({
+			key: "q",
+			label: `“${filters.q}”`,
+			clear: () => ({ q: undefined }),
+		});
 	}
 	for (const brand of filters.brands) {
 		chips.push({
 			key: `brand:${brand}`,
 			label: brand,
-			clear: { brands: filters.brands.filter((b) => b !== brand) },
+			clear: (current) => ({
+				brands: current.brands.filter((value) => value !== brand),
+			}),
 		});
 	}
 	for (const size of filters.sizes) {
 		chips.push({
 			key: `size:${size}`,
 			label: t("Size {{size}}", { size: sizeLabel(size, locale) }),
-			clear: { sizes: filters.sizes.filter((s) => s !== size) },
+			clear: (current) => ({
+				sizes: current.sizes.filter((value) => value !== size),
+			}),
 		});
 	}
 	for (const color of filters.colors) {
 		chips.push({
 			key: `color:${color}`,
 			label: colorLabel(color, locale),
-			clear: { colors: filters.colors.filter((c) => c !== color) },
+			clear: (current) => ({
+				colors: current.colors.filter((value) => value !== color),
+			}),
 		});
 	}
 	if (filters.minPrice != null || filters.maxPrice != null) {
 		chips.push({
 			key: "price",
 			label: priceLabel(filters, t, formatPriceCompact),
-			clear: { minPrice: undefined, maxPrice: undefined },
+			clear: () => ({ minPrice: undefined, maxPrice: undefined }),
 		});
 	}
 	if (showSale && filters.sale) {
-		chips.push({ key: "sale", label: t("On sale"), clear: { sale: false } });
+		chips.push({
+			key: "sale",
+			label: t("On sale"),
+			clear: () => ({ sale: false }),
+		});
 	}
 
 	return chips;
@@ -84,7 +103,7 @@ type ActiveFiltersProps = {
 	filters: CatalogFilters;
 	/** The deals view is always on sale, so it has no sale chip. */
 	showSale: boolean;
-	onChange: (filters: CatalogFilters) => void;
+	onChange: (update: UpdateCatalogFilters) => void;
 };
 
 /** What is narrowing the results right now, each removable with one click. */
@@ -110,7 +129,9 @@ export function ActiveFilters({
 						variant="secondary"
 						size="xs"
 						aria-label={t("Remove filter: {{label}}", { label: chip.label })}
-						onClick={() => onChange({ ...filters, ...chip.clear })}
+						onClick={() =>
+							onChange((current) => ({ ...current, ...chip.clear(current) }))
+						}
 					>
 						{chip.label}
 						<HugeiconsIcon icon={Cancel01Icon} size={12} />
@@ -121,7 +142,9 @@ export function ActiveFilters({
 				<Button
 					variant="ghost"
 					size="xs"
-					onClick={() => onChange({ ...DEFAULT_FILTERS, sort: filters.sort })}
+					onClick={() =>
+						onChange((current) => ({ ...DEFAULT_FILTERS, sort: current.sort }))
+					}
 				>
 					{t("Clear all")}
 				</Button>

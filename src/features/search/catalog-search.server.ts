@@ -1,43 +1,119 @@
-import type { Category } from "#/data/catalog";
 import type { CatalogItem } from "#/data/catalog.types";
-import { compareSizes } from "#/data/sizes";
 import { pageOffset } from "#/lib/pagination";
+import {
+	catalogCandidateBatches,
+	readCatalogPage,
+	readCatalogVariants,
+} from "./catalog-candidates.server";
 import type { CatalogDoc } from "./catalog-doc";
-import type { TagField } from "./catalog-fields";
 import {
 	type CatalogFilters,
 	type CatalogScope,
+	type CatalogSort,
+	DEFAULT_FILTERS,
 	effectiveSort,
 } from "./catalog-filters";
-import { ensureCatalogReady, INDEX } from "./catalog-index.server";
+import { ensureCatalogReady } from "./catalog-index.server";
+import { buildQuery } from "./catalog-query";
 import {
-	buildQuery,
-	expandFacet,
-	facetOptions,
-	sortOptions,
-} from "./catalog-query";
-import { ft } from "./redis-ft.server";
+	createCatalogFacetCounter,
+	needsVariantMatch,
+	selectCatalogVariant,
+} from "./catalog-variants";
 
-/** Listings show the cheapest SKU; the deals scope shows the deepest-discounted one. */
-const toItem =
-	(mode: CatalogScope["mode"]) =>
-	(doc: CatalogDoc): CatalogItem => {
-		const shown = mode === "deals" && doc.deal ? doc.deal : doc;
-		return {
-			id: doc.id,
-			storeId: doc.storeId,
-			slug: doc.slug,
-			name: doc.name,
-			brand: doc.brand ?? null,
-			currency: doc.currency,
-			price: shown.price,
-			originalPrice: shown.originalPrice,
-			imageUrl: shown.imageUrl,
-			discount: doc.discount,
-		};
+function toItem(
+	doc: CatalogDoc,
+	shown: Pick<CatalogItem, "price" | "originalPrice" | "imageUrl" | "skuId">,
+	discount: number,
+): CatalogItem {
+	return {
+		id: doc.id,
+		storeId: doc.storeId,
+		slug: doc.slug,
+		name: doc.name,
+		brand: doc.brand ?? null,
+		currency: doc.currency,
+		price: shown.price,
+		originalPrice: shown.originalPrice,
+		imageUrl: shown.imageUrl,
+		discount,
+		...(shown.skuId && { skuId: shown.skuId }),
 	};
+}
 
-/** One page of products for a scope and its filters, with the total match count. */
+async function findVariantMatches(
+	scope: CatalogScope,
+	filters: CatalogFilters,
+	sort: CatalogSort,
+) {
+	const selectVariant = selectCatalogVariant(scope, filters);
+	const query = buildQuery(scope, {
+		...filters,
+		minPrice: undefined,
+		maxPrice: undefined,
+	});
+	const matches = new Map<string, CatalogItem>();
+	for await (const batch of catalogCandidateBatches(
+		query,
+		scope,
+		sort === "relevance" ? sort : "name",
+	)) {
+		const results = await Promise.all(
+			batch.map(async (doc) => {
+				const sku = selectVariant(await readCatalogVariants(doc));
+				return sku ? toItem(doc, sku, sku.discount) : undefined;
+			}),
+		);
+		for (const item of results) {
+			if (item && !matches.has(item.id)) matches.set(item.id, item);
+		}
+	}
+	const items = [...matches.values()];
+	if (sort === "name" || sort === "relevance") return items;
+	const direction = sort === "price-asc" ? 1 : -1;
+	return items.sort((a, b) => {
+		const difference =
+			sort === "discount" ? a.discount - b.discount : a.price - b.price;
+		return (difference || a.id.localeCompare(b.id)) * direction;
+	});
+}
+
+const MATCH_CACHE_MS = 15_000;
+const MATCH_CACHE_ENTRIES = 8;
+const MATCH_CACHE_MAX_ITEMS = 4096;
+const recentMatches = new Map<
+	string,
+	{ expiresAt: number; items: Promise<CatalogItem[]> }
+>();
+
+/** Share a filtered scan across adjacent pages and simultaneous requests. */
+function loadVariantMatches(
+	scope: CatalogScope,
+	filters: CatalogFilters,
+	sort: CatalogSort,
+) {
+	const key = JSON.stringify([scope, filters]);
+	const cached = recentMatches.get(key);
+	if (cached && cached.expiresAt > Date.now()) return cached.items;
+
+	recentMatches.delete(key);
+	const items = findVariantMatches(scope, filters, sort);
+	const entry = { expiresAt: Date.now() + MATCH_CACHE_MS, items };
+	recentMatches.set(key, entry);
+	if (recentMatches.size > MATCH_CACHE_ENTRIES) {
+		const oldest = recentMatches.keys().next().value;
+		if (oldest !== undefined) recentMatches.delete(oldest);
+	}
+	const discard = () => {
+		if (recentMatches.get(key) === entry) recentMatches.delete(key);
+	};
+	void items.then((matches) => {
+		if (matches.length > MATCH_CACHE_MAX_ITEMS) discard();
+	}, discard);
+	return items;
+}
+
+/** Returns one offer per product. Active variant filters must match the same SKU. */
 export async function searchCatalog(
 	scope: CatalogScope,
 	filters: CatalogFilters,
@@ -45,93 +121,55 @@ export async function searchCatalog(
 	pageSize: number,
 ) {
 	await ensureCatalogReady();
-
 	const offset = pageOffset(page, pageSize);
-	const { total, docs } = await ft.search<CatalogDoc>(
-		INDEX,
-		buildQuery(scope, filters),
-		{
-			sort: sortOptions(effectiveSort(filters, scope), scope),
+	const sort = effectiveSort(filters, scope);
+	if (!needsVariantMatch(filters)) {
+		const { total, docs } = await readCatalogPage(
+			buildQuery(scope, filters),
+			scope,
+			sort,
 			offset,
-			limit: pageSize,
-		},
-	);
+			pageSize,
+		);
+		return {
+			items: docs.map((doc) =>
+				toItem(doc, (scope.mode === "deals" && doc.deal) || doc, doc.discount),
+			),
+			total,
+			hasMore: offset + docs.length < total,
+		};
+	}
 
+	const items = await loadVariantMatches(scope, filters, sort);
 	return {
-		items: docs.map(toItem(scope.mode)),
-		total,
-		hasMore: offset + docs.length < total,
+		items: items.slice(offset, offset + pageSize),
+		total: items.length,
+		hasMore: offset + pageSize < items.length,
 	};
 }
 
-type FacetOption = { value: string; count: number };
-
-/** The filter each facet is driven by, which its own counts must ignore. */
-const FACET_FILTER = {
-	brand: "brands",
-	sizes: "sizes",
-	colors: "colors",
-} as const satisfies Partial<Record<TagField, keyof CatalogFilters>>;
-
-async function tagFacet(
-	scope: CatalogScope,
-	filters: CatalogFilters,
-	field: keyof typeof FACET_FILTER,
-): Promise<FacetOption[]> {
-	// Counts ignore their own filter, so picking one value doesn't hide the rest.
-	const query = buildQuery(scope, { ...filters, [FACET_FILTER[field]]: [] });
-	const rows = await ft.aggregate(INDEX, query, facetOptions(field));
-
-	return expandFacet(rows, field, field !== "brand");
-}
-
-/**
- * Cheapest and dearest price in the results, read from both ends of the
- * unique price sort key.
- */
-async function priceBounds(scope: CatalogScope, filters: CatalogFilters) {
-	const query = buildQuery(scope, {
-		...filters,
-		minPrice: undefined,
-		maxPrice: undefined,
-	});
-	const edge = async (sort: "price-asc" | "price-desc") => {
-		const { docs } = await ft.search<CatalogDoc>(INDEX, query, {
-			sort: sortOptions(sort, scope),
-			offset: 0,
-			limit: 1,
-		});
-		const doc = docs[0];
-		return doc && toItem(scope.mode)(doc).price;
-	};
-
-	const [min, max] = await Promise.all([edge("price-asc"), edge("price-desc")]);
-	return min != null && max != null ? { min, max } : null;
-}
-
-/** Shoe sizes are numbers and clothing sizes are letters: numbers first, each on its own scale. */
-const sizeKind = (size: string): Category =>
-	Number.isNaN(Number(size)) ? "clothing" : "shoes";
-
-const compareFacetSizes = (a: FacetOption, b: FacetOption) => {
-	const [kindA, kindB] = [sizeKind(a.value), sizeKind(b.value)];
-	if (kindA !== kindB) return kindA === "shoes" ? -1 : 1;
-	return compareSizes(kindA, a.value, b.value);
-};
-
-/** What the filter bar offers for the current scope and filters. */
+/** Counts each product once per eligible option, ignoring each facet's own selection. */
 export async function catalogFacets(
 	scope: CatalogScope,
 	filters: CatalogFilters,
 ) {
 	await ensureCatalogReady();
-
-	const [brands, sizes, colors, price] = await Promise.all([
-		tagFacet(scope, filters, "brand"),
-		tagFacet(scope, filters, "sizes"),
-		tagFacet(scope, filters, "colors"),
-		priceBounds(scope, filters),
-	]);
-
-	return { brands, sizes: sizes.toSorted(compareFacetSizes), colors, price };
+	const facets = createCatalogFacetCounter(scope, filters);
+	const seen = new Set<string>();
+	const query = buildQuery(scope, {
+		...DEFAULT_FILTERS,
+		q: filters.q,
+		sale: filters.sale,
+	});
+	for await (const batch of catalogCandidateBatches(query, scope, "name")) {
+		const products = await Promise.all(
+			batch.map(async (doc) => ({ doc, skus: await readCatalogVariants(doc) })),
+		);
+		for (const { doc, skus } of products) {
+			if (seen.has(doc.id)) continue;
+			seen.add(doc.id);
+			facets.addProduct(doc.brand, skus);
+		}
+	}
+	return facets.result();
 }

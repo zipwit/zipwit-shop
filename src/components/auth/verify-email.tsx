@@ -1,3 +1,4 @@
+import { getAuthLinkURL } from "@better-auth-ui/core";
 import { useAuth } from "@better-auth-ui/react";
 import { useVerifyEmailOtp } from "@better-auth-ui/react/plugins/email-otp";
 import { toast } from "sonner";
@@ -6,6 +7,7 @@ import { useAppForm } from "#/components/form/app-form";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { FieldDescription, FieldGroup } from "#/components/ui/field";
 import { authClient } from "#/features/auth/auth-client";
+import { useAuthReturnTo } from "#/features/auth/auth-return-to";
 import { fill, useMessages } from "#/i18n/messages";
 import { cn } from "#/lib/utils";
 import { ResendCodeButton } from "./resend-code-button";
@@ -16,13 +18,19 @@ export type VerifyEmailProps = { className?: string };
 
 export function VerifyEmail({ className }: VerifyEmailProps) {
 	const { basePaths, viewPaths, navigate } = useAuth();
+	const redirectTo = useAuthReturnTo();
 	const messages = useMessages();
 	const email = useStoredEmail(VERIFY_EMAIL_STORAGE_KEY);
 	const verify = useVerifyEmailOtp(authClient, {
 		onSuccess: () => {
 			sessionStorage.removeItem(VERIFY_EMAIL_STORAGE_KEY);
 			toast.success(messages.verifyEmail.success);
-			navigate({ to: `${basePaths.auth}/${viewPaths.auth.signIn}` });
+			navigate({
+				to: getAuthLinkURL(
+					`${basePaths.auth}/${viewPaths.auth.signIn}`,
+					redirectTo,
+				),
+			});
 		},
 	});
 	const form = useAppForm({

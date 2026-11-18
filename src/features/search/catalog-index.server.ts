@@ -11,9 +11,11 @@ import { ft } from "./redis-ft.server";
 
 const FAMILY = "catalog_";
 const KEY_PREFIX = "product:";
-export const INDEX = `${FAMILY}${createHash("sha1").update(schemaArgs().join("|")).update(publicStoreId("catalog-index")).digest("hex").slice(0, 8)}`;
+const PROJECTION_VERSION = "variants-v2";
+export const INDEX = `${FAMILY}${createHash("sha1").update(schemaArgs().join("|")).update(PROJECTION_VERSION).update(publicStoreId("catalog-index")).digest("hex").slice(0, 8)}`;
 let indexReady: Promise<void> | undefined;
 
+/** Keeps older index versions available during rolling deployments. */
 async function createIndex() {
 	const existing = await ft.list();
 	if (!existing.includes(INDEX)) {
@@ -27,7 +29,6 @@ async function createIndex() {
 				throw error;
 		}
 	}
-	// Avoid dropping other versions while an older app instance is still serving a rolling deploy.
 }
 const ensureIndex = () =>
 	(indexReady ??= createIndex().catch((error: unknown) => {
@@ -35,7 +36,7 @@ const ensureIndex = () =>
 		throw error;
 	}));
 
-/** Rebuild derived Search data from Redis catalog records; never read PostgreSQL. */
+/** Rebuilds derived Search data from Redis catalog records and preserves concurrent updates. */
 export async function syncCatalogIndex() {
 	await ensureIndex();
 	const redis = await getRedis();
@@ -46,7 +47,6 @@ export async function syncCatalogIndex() {
 			if (value === null) continue;
 			const record = catalogRecordSchema.parse(value);
 			const summary = catalogSummary(record);
-			// A concurrent catalog update wins over this older projection.
 			await redis.eval(
 				`
 local current = redis.call('JSON.GET', KEYS[1])

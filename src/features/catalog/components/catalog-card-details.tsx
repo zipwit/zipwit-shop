@@ -24,6 +24,7 @@ export function CatalogCardDetails({ product }: { product: ProductListItem }) {
 				<Link
 					to="/product/$slug"
 					params={{ slug }}
+					search={product.skuId ? { sku: product.skuId } : undefined}
 					className="after:absolute after:inset-0 after:rounded-[1.75rem] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-brand"
 				>
 					{name}

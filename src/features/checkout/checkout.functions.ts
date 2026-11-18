@@ -5,6 +5,7 @@ import {
 	authenticated,
 	optionalSession,
 } from "#/features/auth/session.middleware";
+import { ensure } from "#/server/public-error";
 import {
 	getCheckout,
 	prepareCheckout,
@@ -23,10 +24,18 @@ export const checkoutPageFn = createServerFn({ method: "GET" })
 			return { userId: null, ready: false, addresses: [], checkout: null };
 		const [ready, savedAddresses, checkout] = await Promise.all([
 			data.id ? true : checkoutPricing().then(Boolean),
-			addresses.list(userId),
+			data.id ? [] : addresses.list(userId),
 			data.id ? getCheckout(userId, data.id) : null,
 		]);
 		return { userId, ready, addresses: savedAddresses, checkout };
+	});
+
+export const getCheckoutFn = createServerFn({ method: "GET" })
+	.middleware([authenticated])
+	.validator(idInput.extend({ userId: z.string().min(1) }))
+	.handler(({ data, context }) => {
+		ensure(data.userId === context.userId, "Please sign in to continue.");
+		return getCheckout(context.userId, data.id);
 	});
 
 export const prepareCheckoutFn = createServerFn({ method: "POST" })

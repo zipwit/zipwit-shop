@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { createCartStore } from "../src/features/cart/cart-store.server";
 import { getRedis } from "../src/server/redis.server";
 
-// Uses one isolated, expiring key. Never reads or resets visitor carts.
 const redis = await getRedis();
 const key = `cart-check:${randomUUID()}`;
 const available = [{ id: "live", currency: "USD" }];

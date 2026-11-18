@@ -157,7 +157,6 @@ function buildCatalogue() {
 
 				const [minPrice, maxPrice] = priceRange[category];
 				const originalPrice = Math.round(int(minPrice, maxPrice) / 100) * 100;
-				// About two thirds of products are discounted by 10-60%.
 				const onSale = random() < 0.66;
 				const price = onSale
 					? Math.round((originalPrice * (100 - int(10, 60))) / 10_000) * 100
@@ -181,7 +180,6 @@ function buildCatalogue() {
 						inStock: random() > 0.2,
 					})),
 				);
-				// A product with nothing in stock would never show up anywhere.
 				if (skuRows.length > 0 && !skuRows.some((sku) => sku.inStock)) {
 					(skuRows[0] as SkuRow).inStock = true;
 				}

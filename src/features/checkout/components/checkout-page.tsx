@@ -13,14 +13,22 @@ import { CheckoutProof } from "./checkout-proof";
 import { CheckoutReceipt } from "./checkout-receipt";
 import { CartSummary, OrderSummary } from "./order-summary";
 
-type PageData = Awaited<ReturnType<typeof checkoutPageFn>>;
+type PageData = Omit<Awaited<ReturnType<typeof checkoutPageFn>>, "checkout"> & {
+	checkoutId?: string;
+};
 const stepTitles = [
 	"Choose your U.S. delivery address",
 	"Transfer the exact amount",
 	"Upload your payment screenshot",
 ];
 
-export function CheckoutPage({ data }: { data: PageData }) {
+export function CheckoutPage({
+	data,
+	requestedId,
+}: {
+	data: PageData;
+	requestedId?: string;
+}) {
 	const t = useTranslation();
 	if (!data.userId)
 		return (
@@ -32,14 +40,22 @@ export function CheckoutPage({ data }: { data: PageData }) {
 				<p className="text-muted-foreground">
 					{t("Sign in to save your delivery address and place an order.")}
 				</p>
-				<LinkButton to="/auth/$path" params={{ path: "sign-in" }}>
+				<LinkButton
+					to="/auth/$path"
+					params={{ path: "sign-in" }}
+					search={{
+						redirectTo: requestedId
+							? `/checkout?checkout=${requestedId}`
+							: "/checkout",
+					}}
+				>
 					{t("Sign in")}
 				</LinkButton>
 			</Container>
 		);
 	return (
 		<CheckoutFlow
-			key={`${data.userId}:${data.checkout?.id ?? "new"}`}
+			key={`${data.userId}:${data.checkoutId ?? "new"}`}
 			data={data}
 			userId={data.userId}
 		/>
@@ -49,7 +65,7 @@ export function CheckoutPage({ data }: { data: PageData }) {
 function CheckoutFlow({ data, userId }: { data: PageData; userId: string }) {
 	const t = useTranslation();
 	const cart = useCart();
-	const flow = useCheckout(data.checkout);
+	const flow = useCheckout(userId, data.checkoutId);
 	const { checkout, step, busy, error } = flow;
 	const heading = useRef<HTMLHeadingElement>(null);
 	const previousStep = useRef(1);
@@ -66,6 +82,14 @@ function CheckoutFlow({ data, userId }: { data: PageData; userId: string }) {
 				heading={heading}
 			/>
 		);
+	if (data.checkoutId && !checkout) {
+		return (
+			<Container className="py-12">
+				<h1 className="type-title text-3xl">{t("Checkout")}</h1>
+				<p role={error ? "alert" : "status"}>{error ?? t("Loading…")}</p>
+			</Container>
+		);
+	}
 
 	return (
 		<Container className="max-w-6xl py-8 md:py-12">

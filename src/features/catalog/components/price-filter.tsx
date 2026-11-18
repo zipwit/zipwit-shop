@@ -23,14 +23,7 @@ const toRange = (value: number | readonly number[]): [number, number] =>
 export function PriceFilter(props: PriceFilterProps) {
 	if (!props.range) return null;
 
-	// Remounting on committed-value change resets the drag draft.
-	return (
-		<PriceFilterInner
-			key={`${props.minPrice ?? ""}-${props.maxPrice ?? ""}-${props.range.min}-${props.range.max}`}
-			{...props}
-			range={props.range}
-		/>
-	);
+	return <PriceFilterInner {...props} range={props.range} />;
 }
 
 function PriceFilterInner({
@@ -41,17 +34,24 @@ function PriceFilterInner({
 }: PriceFilterInnerProps) {
 	const { formatPriceCompact } = usePriceFormatter();
 	const t = useTranslation();
-	// Where the thumbs sit while being dragged; the URL only hears about it on release.
-	const [draft, setDraft] = useState<[number, number] | null>(null);
+	const [draft, setDraft] = useState<{
+		key: string;
+		values: [number, number];
+	}>();
+	const draftKey = `${minPrice ?? ""}:${maxPrice ?? ""}:${range.min}:${range.max}`;
+	if (draft && draft.key !== draftKey) setDraft(undefined);
 
 	const lo = Math.floor(range.min / 100);
 	const hi = Math.max(lo + 1, Math.ceil(range.max / 100));
 	const clamp = (value: number) => Math.min(hi, Math.max(lo, value));
 
-	const [from, to] = draft ?? [
-		clamp(minPrice != null ? minPrice / 100 : lo),
-		clamp(maxPrice != null ? maxPrice / 100 : hi),
-	];
+	const [from, to] =
+		draft?.key === draftKey
+			? draft.values
+			: [
+					clamp(minPrice != null ? minPrice / 100 : lo),
+					clamp(maxPrice != null ? maxPrice / 100 : hi),
+				];
 	const active = minPrice != null || maxPrice != null;
 
 	return (
@@ -66,7 +66,10 @@ function PriceFilterInner({
 					: t("Price")
 			}
 			active={active}
-			onClear={() => onChange({ minPrice: undefined, maxPrice: undefined })}
+			onClear={() => {
+				setDraft(undefined);
+				onChange({ minPrice: undefined, maxPrice: undefined });
+			}}
 		>
 			<p className="type-num text-lg">
 				{t("{{min}} to {{max}}", {
@@ -79,8 +82,13 @@ function PriceFilterInner({
 				max={hi}
 				step={1}
 				value={[from, to]}
-				aria-label={t("Price range")}
-				onValueChange={(value) => setDraft(toRange(value))}
+				getAriaLabel={(index) =>
+					t(index === 0 ? "Minimum price" : "Maximum price")
+				}
+				getAriaValueText={(_, value) => formatPriceCompact(value * 100)}
+				onValueChange={(value) =>
+					setDraft({ key: draftKey, values: toRange(value) })
+				}
 				onValueCommitted={(value) => {
 					const [nextFrom, nextTo] = toRange(value);
 					onChange({

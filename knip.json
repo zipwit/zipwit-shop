@@ -2,9 +2,8 @@
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"entry": [
 		"src/routes/**/*.{ts,tsx}",
-		"src/**/*.test.{ts,tsx}",
+		"test/**/*.test.{ts,tsx}",
 		"scripts/*.ts"
 	],
-	"project": ["src/**/*.{ts,tsx,css}"],
-	"ignore": ["src/lib/auth/auth-plugin.ts"]
+	"project": ["src/**/*.{ts,tsx,css}", "test/**/*.{ts,tsx}"]
 }

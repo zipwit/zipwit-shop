@@ -1,10 +1,8 @@
 import { and, asc, desc, eq } from "drizzle-orm";
-import { db } from "#/db";
-import { address, user } from "#/db/schema";
+import { db, type Transaction } from "#/db";
+import { address } from "#/db/schema";
 import { ensure } from "#/server/public-error";
 import { type AddressInput, MAX_ADDRESSES } from "./address.schema";
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** What the browser may see: never the owner or the timestamps. */
 const publicColumns = {
@@ -31,25 +29,18 @@ const toRow = (fields: AddressFields) => ({
 const mine = (userId: string, id: string) =>
 	and(eq(address.id, id), eq(address.userId, userId));
 
-/**
- * Takes a row lock on the owner for the rest of the transaction, so one
- * account's address changes run one at a time. That keeps the address limit
- * and the single primary true even when two requests race.
- */
-const lockOwner = (tx: Tx, userId: string) =>
-	tx
-		.select({ id: user.id })
-		.from(user)
-		.where(eq(user.id, userId))
-		.for("update");
-
 /** Frees the primary slot first: the partial unique index allows only one primary per user. */
-const demotePrimary = (tx: Tx, userId: string) =>
+const demotePrimary = (tx: Transaction, userId: string) =>
 	tx
 		.update(address)
 		.set({ isPrimary: false })
-		.where(and(eq(address.userId, userId), eq(address.isPrimary, true)));
+		.where(and(eq(address.userId, userId), eq(address.isPrimary, true)))
+		.run();
 
+/**
+ * An account with saved addresses always has a primary. To move that designation,
+ * select another address. Removing the primary promotes the oldest remaining one.
+ */
 export const addresses = {
 	/** The primary address first, then the rest in the order they were added. */
 	async list(userId: string) {
@@ -65,27 +56,28 @@ export const addresses = {
 	},
 
 	async create(userId: string, { isPrimary, ...fields }: AddressInput) {
-		await db.transaction(async (tx) => {
-			await lockOwner(tx, userId);
+		db.transaction(
+			(tx) => {
+				const existing = tx
+					.select({ id: address.id })
+					.from(address)
+					.where(eq(address.userId, userId))
+					.all();
+				ensure(
+					existing.length < MAX_ADDRESSES,
+					"You can save up to {{max}} addresses.",
+					{ max: MAX_ADDRESSES },
+				);
 
-			const existing = await tx
-				.select({ id: address.id })
-				.from(address)
-				.where(eq(address.userId, userId));
-			ensure(
-				existing.length < MAX_ADDRESSES,
-				"You can save up to {{max}} addresses.",
-				{ max: MAX_ADDRESSES },
-			);
+				const primary = isPrimary || existing.length === 0;
+				if (primary) demotePrimary(tx, userId);
 
-			// The first address is primary automatically.
-			const primary = isPrimary || existing.length === 0;
-			if (primary) await demotePrimary(tx, userId);
-
-			await tx
-				.insert(address)
-				.values({ ...toRow(fields), userId, isPrimary: primary });
-		});
+				tx.insert(address)
+					.values({ ...toRow(fields), userId, isPrimary: primary })
+					.run();
+			},
+			{ behavior: "immediate" },
+		);
 	},
 
 	async update(
@@ -93,66 +85,73 @@ export const addresses = {
 		id: string,
 		{ isPrimary, ...fields }: AddressInput,
 	) {
-		await db.transaction(async (tx) => {
-			await lockOwner(tx, userId);
+		db.transaction(
+			(tx) => {
+				const current = tx
+					.select({ isPrimary: address.isPrimary })
+					.from(address)
+					.where(mine(userId, id))
+					.get();
+				ensure(current, "That address no longer exists.");
 
-			const [current] = await tx
-				.select({ isPrimary: address.isPrimary })
-				.from(address)
-				.where(mine(userId, id));
-			ensure(current, "That address no longer exists.");
+				const promote = isPrimary && !current.isPrimary;
+				if (promote) demotePrimary(tx, userId);
 
-			// An account always keeps a primary address, so unticking it here does
-			// nothing; picking another address as primary is how it moves.
-			const promote = isPrimary && !current.isPrimary;
-			if (promote) await demotePrimary(tx, userId);
-
-			await tx
-				.update(address)
-				.set({ ...toRow(fields), ...(promote && { isPrimary: true }) })
-				.where(mine(userId, id));
-		});
+				tx.update(address)
+					.set({ ...toRow(fields), ...(promote && { isPrimary: true }) })
+					.where(mine(userId, id))
+					.run();
+			},
+			{ behavior: "immediate" },
+		);
 	},
 
 	async setPrimary(userId: string, id: string) {
-		await db.transaction(async (tx) => {
-			await lockOwner(tx, userId);
+		db.transaction(
+			(tx) => {
+				const target = tx
+					.select({ isPrimary: address.isPrimary })
+					.from(address)
+					.where(mine(userId, id))
+					.get();
+				ensure(target, "That address no longer exists.");
+				if (target.isPrimary) return;
 
-			const [target] = await tx
-				.select({ isPrimary: address.isPrimary })
-				.from(address)
-				.where(mine(userId, id));
-			ensure(target, "That address no longer exists.");
-			if (target.isPrimary) return;
-
-			await demotePrimary(tx, userId);
-			await tx.update(address).set({ isPrimary: true }).where(mine(userId, id));
-		});
+				demotePrimary(tx, userId);
+				tx.update(address)
+					.set({ isPrimary: true })
+					.where(mine(userId, id))
+					.run();
+			},
+			{ behavior: "immediate" },
+		);
 	},
 
 	async remove(userId: string, id: string) {
-		await db.transaction(async (tx) => {
-			await lockOwner(tx, userId);
+		db.transaction(
+			(tx) => {
+				const removed = tx
+					.delete(address)
+					.where(mine(userId, id))
+					.returning({ isPrimary: address.isPrimary })
+					.get();
+				if (!removed?.isPrimary) return;
 
-			const [removed] = await tx
-				.delete(address)
-				.where(mine(userId, id))
-				.returning({ isPrimary: address.isPrimary });
-			if (!removed?.isPrimary) return;
-
-			// Never leave an account without a primary while it still has addresses.
-			const [next] = await tx
-				.select({ id: address.id })
-				.from(address)
-				.where(eq(address.userId, userId))
-				.orderBy(asc(address.createdAt), asc(address.id))
-				.limit(1);
-			if (next) {
-				await tx
-					.update(address)
-					.set({ isPrimary: true })
-					.where(eq(address.id, next.id));
-			}
-		});
+				const next = tx
+					.select({ id: address.id })
+					.from(address)
+					.where(eq(address.userId, userId))
+					.orderBy(asc(address.createdAt), asc(address.id))
+					.limit(1)
+					.get();
+				if (next) {
+					tx.update(address)
+						.set({ isPrimary: true })
+						.where(eq(address.id, next.id))
+						.run();
+				}
+			},
+			{ behavior: "immediate" },
+		);
 	},
 };

@@ -1,4 +1,4 @@
-import { useQuery, useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { InfiniteScrollFooter } from "#/components/infinite-scroll-footer";
 import { Button } from "#/components/ui/button";
@@ -19,6 +19,7 @@ import {
 	type CatalogScope,
 	DEFAULT_FILTERS,
 	hasActiveFilters,
+	type UpdateCatalogFilters,
 } from "#/features/search/catalog-filters";
 import { useTranslation } from "#/i18n/translate";
 import { DealCard, dealImageLoading } from "./deal-card";
@@ -28,7 +29,7 @@ import { ProductGrid } from "./product-grid";
 type CatalogListingProps = {
 	scope: CatalogScope;
 	filters: CatalogFilters;
-	onFiltersChange: (filters: CatalogFilters) => void;
+	onFiltersChange: (update: UpdateCatalogFilters) => void;
 	/** Shown when the scope has no products at all (not when filters hide them). */
 	empty?: ReactNode;
 };
@@ -46,31 +47,49 @@ export function CatalogListing({
 	const t = useTranslation();
 	const {
 		data,
+		isPending,
+		isError,
+		isFetching,
+		isPlaceholderData,
+		refetch,
 		hasNextPage,
 		fetchNextPage,
 		isFetchingNextPage,
 		isFetchNextPageError,
-	} = useSuspenseInfiniteQuery(catalogQuery(scope, filters));
-	const { data: facets } = useQuery(catalogFacetsQuery(scope, filters));
+	} = useInfiniteQuery(catalogQuery(scope, filters));
+	const facets = useQuery(catalogFacetsQuery(scope, filters));
 
-	const items = data.pages.flatMap((page) => page.items);
-	const total = data.pages[0]?.total ?? 0;
+	const items = data?.pages.flatMap((page) => page.items) ?? [];
+	const total = isPlaceholderData ? undefined : data?.pages[0]?.total;
 	const filtered = hasActiveFilters(filters);
 
 	return (
 		<>
-			{facets && (
-				<FilterBar
-					scope={scope}
-					filters={filters}
-					facets={facets}
-					total={total}
-					onChange={onFiltersChange}
-				/>
-			)}
+			<FilterBar
+				scope={scope}
+				filters={filters}
+				facets={facets.data}
+				facetsPending={facets.isPending || facets.isPlaceholderData}
+				onRetryFacets={facets.isError ? () => facets.refetch() : undefined}
+				total={total}
+				resultsPending={isPending || isPlaceholderData}
+				onChange={onFiltersChange}
+			/>
 
+			{isError && !isFetchNextPageError && (
+				<div className="mt-8 flex flex-wrap items-center gap-3">
+					<p role="alert">{t("Couldn't load results.")}</p>
+					<Button
+						variant="outline"
+						disabled={isFetching}
+						onClick={() => refetch()}
+					>
+						{t("Try again")}
+					</Button>
+				</div>
+			)}
 			{items.length === 0 ? (
-				filtered ? (
+				!data || isPlaceholderData ? null : filtered ? (
 					<Empty className="my-8 border">
 						<EmptyHeader>
 							<EmptyTitle>{t("Nothing matches these filters.")}</EmptyTitle>
@@ -82,7 +101,10 @@ export function CatalogListing({
 							<Button
 								variant="outline"
 								onClick={() =>
-									onFiltersChange({ ...DEFAULT_FILTERS, sort: filters.sort })
+									onFiltersChange((current) => ({
+										...DEFAULT_FILTERS,
+										sort: current.sort,
+									}))
 								}
 							>
 								{t("Clear filters")}
@@ -114,7 +136,7 @@ export function CatalogListing({
 			)}
 
 			<InfiniteScrollFooter
-				hasNextPage={hasNextPage}
+				hasNextPage={!isPlaceholderData && hasNextPage}
 				isFetchingNextPage={isFetchingNextPage}
 				isError={isFetchNextPageError}
 				fetchNextPage={fetchNextPage}

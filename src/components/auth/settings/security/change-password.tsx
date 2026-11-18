@@ -20,7 +20,10 @@ import { Spinner } from "#/components/ui/spinner";
 import { authClient as otpAuthClient } from "#/features/auth/auth-client";
 import { useMessages } from "#/i18n/messages";
 import { cn } from "#/lib/utils";
-import { PasswordStrengthMeter } from "../../password-strength-meter";
+import {
+	ConfirmPasswordField,
+	NewPasswordField,
+} from "../../new-password-field";
 import { RESET_PASSWORD_EMAIL_STORAGE_KEY } from "../../storage-keys";
 
 export type ChangePasswordProps = {
@@ -143,8 +146,6 @@ function ChangePasswordForm({
 		authClient,
 		{
 			onError: (error) => {
-				// The haveIBeenPwned plugin rejects on the password itself, so it
-				// belongs against the field rather than in a toast.
 				setIsCompromised(isPasswordCompromisedError(error));
 			},
 			onSuccess: () => {
@@ -170,9 +171,7 @@ function ChangePasswordForm({
 					newPassword: value.newPassword,
 					revokeOtherSessions: true,
 				});
-			} catch {
-				// The mutation reports the error through its configured handler.
-			}
+			} catch {}
 		},
 	});
 
@@ -216,24 +215,15 @@ function ChangePasswordForm({
 									onChange: ({ value }) => validatePassword(value),
 								}}
 							>
-								{(field) => (
-									<field.FormTextField
+								{() => (
+									<NewPasswordField
 										label={localization.auth.newPassword}
-										type="password"
-										autoComplete="new-password"
 										placeholder={localization.auth.newPasswordPlaceholder}
-										required
 										disabled={isPending}
-										minLength={emailAndPassword?.minPasswordLength}
-										maxLength={emailAndPassword?.maxPasswordLength}
 										isLoading={!session}
-										error={
-											isCompromised && localization.auth.passwordCompromised
-										}
-										onValueChange={() => setIsCompromised(false)}
-									>
-										<PasswordStrengthMeter password={field.state.value} />
-									</field.FormTextField>
+										isCompromised={isCompromised}
+										onEdit={() => setIsCompromised(false)}
+									/>
 								)}
 							</form.AppField>
 
@@ -249,16 +239,9 @@ function ChangePasswordForm({
 											),
 									}}
 								>
-									{(field) => (
-										<field.FormTextField
-											label={localization.auth.confirmPassword}
-											type="password"
-											autoComplete="new-password"
-											placeholder={localization.auth.confirmPasswordPlaceholder}
-											required
+									{() => (
+										<ConfirmPasswordField
 											disabled={isPending}
-											minLength={emailAndPassword?.minPasswordLength}
-											maxLength={emailAndPassword?.maxPasswordLength}
 											isLoading={!session}
 										/>
 									)}

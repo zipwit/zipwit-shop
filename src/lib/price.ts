@@ -18,8 +18,6 @@ function getFormatter(currency: string, whole: boolean) {
 	return formatter;
 }
 
-// Georgian currency placement and separators differ across ICU/CLDR versions.
-// Use one numeric format and assemble the locale's layout explicitly for SSR.
 function formatAmount(
 	minorUnits: number,
 	currency: string,

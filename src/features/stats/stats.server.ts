@@ -36,13 +36,13 @@ async function computeStats(): Promise<Stats> {
 	});
 }
 
-// Counts may lag live inventory by at most 30 seconds. Checkout always checks stock directly.
 const statsCache = createJsonCache({
 	key: "catalog:stats:v2",
 	ttlSeconds: 30,
 	schema: statsSchema,
 	compute: computeStats,
 });
+/** Returns display counts cached for up to 30 seconds. Checkout reads stock directly. */
 export const getStats = statsCache.get;
 
 /** Importers can publish fresh counts immediately after a catalog update. */

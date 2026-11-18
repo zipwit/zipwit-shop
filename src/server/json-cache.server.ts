@@ -9,9 +9,9 @@ type JsonCacheOptions<S extends z.ZodType> = {
 };
 
 /**
- * Invalid or unavailable cache entries fall through to `compute`; source errors
- * still propagate. Concurrent reads share one request per process. `get` tolerates write failures;
- * `refresh` requires storage and publishes after any older in-flight write.
+ * Misses and cache failures fall through to `compute`. Source errors propagate.
+ * Concurrent reads in a process share a request through the cache write. `get`
+ * tolerates write failures. `refresh` requires storage and waits for older writes.
  */
 export function createJsonCache<S extends z.ZodType>({
 	key,
@@ -51,7 +51,6 @@ export function createJsonCache<S extends z.ZodType>({
 				const cached = await read();
 				if (cached !== null) return cached;
 				const value = await compute();
-				// Keep the request shared until the cache is populated, including a slow SET.
 				await write(value).catch(() =>
 					console.warn(`Cache write failed (${key})`),
 				);
@@ -65,7 +64,6 @@ export function createJsonCache<S extends z.ZodType>({
 			if (pendingRefresh) return pendingRefresh;
 			const previous = pendingRead;
 			pendingRefresh = (async () => {
-				// Finish any older write before publishing the explicit refresh.
 				await previous?.catch(() => undefined);
 				const value = await compute();
 				await write(value);

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { findCatalogSkus } from "#/features/catalog/catalog-read.server";
 import { getGelPerUsd } from "#/features/checkout/exchange-rate.server";
 import { unitPriceUsd } from "#/features/shipping/money.server";
-import { warehouseShipping } from "#/features/shipping/shipping-config.server";
+import { getWarehouseShipping } from "#/features/shipping/warehouse-shipping.server";
 import { PublicError } from "#/server/public-error";
 import { getRedis } from "#/server/redis.server";
 import { type CartSnapshot, unavailableCartEntries } from "./cart";
@@ -29,8 +29,7 @@ const cartKey = () => {
 };
 
 const store = async () => createCartStore(await getRedis(), findCatalogSkus);
-async function getCart(strict = false): Promise<CartSnapshot> {
-	const id = cookieId();
+async function getCart(id = cookieId(), strict = false): Promise<CartSnapshot> {
 	const entries = id
 		? Object.entries(await (await getRedis()).hGetAll(keyFor(id)))
 		: [];
@@ -64,7 +63,7 @@ async function getCart(strict = false): Promise<CartSnapshot> {
 				...line,
 				quantity: Number(value),
 				shipping: {
-					...warehouseShipping(warehouse),
+					...getWarehouseShipping(warehouse),
 					estimatedUnitUsd: unitPriceUsd(
 						sku.price,
 						sku.currency,
@@ -78,18 +77,30 @@ async function getCart(strict = false): Promise<CartSnapshot> {
 }
 
 export const cart = {
+	getId: cookieId,
 	get: async () => (await getCart()).items,
 	getSnapshot: () => getCart(),
-	getForCheckout: async () => (await getCart(true)).items,
+	async getForCheckout() {
+		const cartId = cookieId();
+		return { cartId, items: cartId ? (await getCart(cartId, true)).items : [] };
+	},
 
 	async removeUnavailable() {
 		const id = cookieId();
 		if (id) await (await store()).removeUnavailable(keyFor(id));
 	},
 
-	async removePurchased(items: { id: string; quantity: number }[]) {
-		const id = cookieId();
-		if (id) await (await store()).removePurchased(keyFor(id), items);
+	async removePurchased(
+		id: string,
+		orderId: string,
+		items: { id: string; quantity: number }[],
+		deadline: Date,
+	) {
+		await (await store()).removePurchased(keyFor(id), orderId, items, deadline);
+	},
+
+	async acknowledgePurchaseCleanup(id: string, orderId: string) {
+		await (await store()).acknowledgePurchaseCleanup(keyFor(id), orderId);
 	},
 
 	async add(skuId: string) {

@@ -17,6 +17,7 @@ import { useIsMutating } from "@tanstack/react-query";
 import type { ComponentProps } from "react";
 import { Button } from "#/components/ui/button";
 import { Spinner } from "#/components/ui/spinner";
+import { useAuthReturnTo } from "#/features/auth/auth-return-to";
 import { cn } from "#/lib/utils";
 
 export type ProviderButtonProps = {
@@ -39,14 +40,9 @@ export function ProviderButton({
 	className,
 	...props
 }: ProviderButtonProps) {
-	const {
-		authClient,
-		baseURL,
-		localization,
-		navigate,
-		redirectTo,
-		socialSignInMode,
-	} = useAuth();
+	const { authClient, baseURL, localization, navigate, socialSignInMode } =
+		useAuth();
+	const redirectTo = useAuthReturnTo();
 
 	const callbackURL = `${baseURL}${redirectTo}`;
 	const { fetchOptions, resetFetchOptions } = useFetchOptions();

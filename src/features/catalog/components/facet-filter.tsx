@@ -28,7 +28,6 @@ export function FacetFilter({
 }: FacetFilterProps) {
 	const id = useId();
 
-	// A chosen value stays visible even when the other filters leave it with no matches.
 	const shown = [
 		...options,
 		...selected

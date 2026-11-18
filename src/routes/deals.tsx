@@ -50,8 +50,8 @@ function DealsPage() {
 			<CatalogListing
 				scope={scope}
 				filters={filters}
-				onFiltersChange={(search) =>
-					navigate({ search, replace: true, resetScroll: false })
+				onFiltersChange={(update) =>
+					navigate({ search: update, replace: true, resetScroll: false })
 				}
 				empty={
 					<p className="py-10 text-muted-foreground">

@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+import { sumBy } from "es-toolkit";
 import {
 	type CartItem,
 	MAX_CART_LINES,
@@ -9,11 +10,69 @@ import {
 	unitPriceUsd,
 } from "#/features/shipping/money.server";
 import {
+	getShipmentRule,
 	groupShipments,
 	shippingCharge,
-	validShippingRule,
 } from "#/features/shipping/shipping";
+import { ensure } from "#/server/public-error";
 import type { CheckoutPricing, CheckoutQuote } from "./checkout";
+
+function validatePricing(pricing: CheckoutPricing) {
+	if (
+		!Number.isFinite(pricing.gelPerUsd) ||
+		pricing.gelPerUsd <= 0 ||
+		pricing.gelPerUsd > 100
+	)
+		throw new Error("Invalid exchange rate");
+	if (
+		!Number.isSafeInteger(pricing.serviceFeeBps) ||
+		pricing.serviceFeeBps < 0 ||
+		pricing.serviceFeeBps > 10000
+	)
+		throw new Error("Invalid checkout fees");
+}
+
+function priceCheckoutLine(
+	item: CartItem,
+	sourceCurrency: CheckoutQuote["sourceCurrency"],
+	gelPerUsd: number,
+) {
+	if (
+		item.currency !== sourceCurrency ||
+		!Number.isSafeInteger(item.price) ||
+		item.price <= 0 ||
+		!Number.isInteger(item.quantity) ||
+		item.quantity < 1 ||
+		item.quantity > MAX_QUANTITY
+	)
+		throw new Error("Invalid cart item");
+	const usdPrice = unitPriceUsd(item.price, sourceCurrency, gelPerUsd);
+	if (usdPrice === null || usdPrice < 1)
+		throw new Error("Invalid converted price");
+	return { ...item, usdPrice, usdTotal: usdPrice * item.quantity };
+}
+
+function quoteShipment({
+	groupId,
+	lines,
+}: {
+	groupId: string;
+	lines: CheckoutQuote["lines"];
+}) {
+	const rule = getShipmentRule(lines);
+	ensure(
+		rule,
+		"Shipping is not available for some items. Please review your cart or contact us.",
+	);
+	const subtotalUsd = sumBy(lines, (line) => line.usdTotal);
+	return {
+		groupId,
+		itemIds: lines.map((line) => line.id),
+		subtotalUsd,
+		shippingUsd: shippingCharge(subtotalUsd, rule),
+		rule: { ...rule },
+	};
+}
 
 /**
  * Freeze prices in integer minor units: convert each unit to USD before applying
@@ -27,77 +86,17 @@ export function calculateQuote(
 ): CheckoutQuote {
 	if (!items.length || items.length > MAX_CART_LINES)
 		throw new Error("Your cart is empty or too large.");
-	if (
-		!Number.isFinite(pricing.gelPerUsd) ||
-		pricing.gelPerUsd <= 0 ||
-		pricing.gelPerUsd > 100
-	)
-		throw new Error("Invalid exchange rate");
-	if (
-		!Number.isSafeInteger(pricing.serviceFeeBps) ||
-		pricing.serviceFeeBps < 0 ||
-		pricing.serviceFeeBps > 10000
-	)
-		throw new Error("Invalid checkout fees");
+	validatePricing(pricing);
 	const sourceCurrency = items[0]?.currency;
 	if (sourceCurrency !== "GEL" && sourceCurrency !== "USD")
 		throw new Error("Unsupported cart currency");
-	const lines = items.map((item) => {
-		if (
-			item.currency !== sourceCurrency ||
-			!Number.isSafeInteger(item.price) ||
-			item.price <= 0 ||
-			!Number.isInteger(item.quantity) ||
-			item.quantity < 1 ||
-			item.quantity > MAX_QUANTITY
-		)
-			throw new Error("Invalid cart item");
-		const usdPrice = unitPriceUsd(
-			item.price,
-			sourceCurrency,
-			pricing.gelPerUsd,
-		);
-		if (usdPrice === null || usdPrice < 1)
-			throw new Error("Invalid converted price");
-		return { ...item, usdPrice, usdTotal: usdPrice * item.quantity };
-	});
-	const sourceSubtotal = lines.reduce(
-		(sum, line) => sum + line.price * line.quantity,
-		0,
+	const lines = items.map((item) =>
+		priceCheckoutLine(item, sourceCurrency, pricing.gelPerUsd),
 	);
-	const subtotalUsd = lines.reduce((sum, line) => sum + line.usdTotal, 0);
-	const shipments = groupShipments(lines).map(
-		({ groupId, lines: shipmentLines }) => {
-			const rule = shipmentLines[0]?.shipping?.rule;
-			if (
-				!validShippingRule(rule) ||
-				shipmentLines.some(
-					(line) =>
-						!line.shipping?.groupId ||
-						line.shipping.rule?.flatRateUsd !== rule.flatRateUsd ||
-						line.shipping.rule?.freeFromUsd !== rule.freeFromUsd,
-				)
-			)
-				throw new Error(
-					"Shipping is not available for some items. Please review your cart or contact us.",
-				);
-			const subtotalUsd = shipmentLines.reduce(
-				(sum, line) => sum + line.usdTotal,
-				0,
-			);
-			return {
-				groupId,
-				itemIds: shipmentLines.map((line) => line.id),
-				subtotalUsd,
-				shippingUsd: shippingCharge(subtotalUsd, rule),
-				rule: { ...rule },
-			};
-		},
-	);
-	const shippingUsd = shipments.reduce(
-		(sum, shipment) => sum + shipment.shippingUsd,
-		0,
-	);
+	const sourceSubtotal = sumBy(lines, (line) => line.price * line.quantity);
+	const subtotalUsd = sumBy(lines, (line) => line.usdTotal);
+	const shipments = groupShipments(lines).map(quoteShipment);
+	const shippingUsd = sumBy(shipments, (shipment) => shipment.shippingUsd);
 	const serviceFeeUsd = Math.round(
 		(subtotalUsd * pricing.serviceFeeBps) / 10000,
 	);

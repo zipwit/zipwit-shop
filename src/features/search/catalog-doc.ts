@@ -4,6 +4,16 @@ import type { Category, Department } from "#/data/catalog";
 const numericSort = (value: number, id: string) =>
 	`${String(value).padStart(12, "0")}:${id}`;
 
+export type CatalogVariant = {
+	skuId?: string;
+	color: string;
+	size: string;
+	price: number;
+	originalPrice: number | null;
+	discount: number;
+	imageUrl: string | null;
+};
+
 /**
  * One indexed product. Only in-stock SKUs are summarised, so a product with
  * nothing in stock never enters the index (matching the old listings).
@@ -28,6 +38,8 @@ export type CatalogDoc = {
 	colors: string;
 	/** Distinct sizes, comma-separated, indexed as a multi-value TAG. */
 	sizes: string;
+	/** Older writers may still publish the product-only summary during a rollout. */
+	variants?: CatalogVariant[];
 	/** Cheapest in-stock SKU: what listings show. */
 	price: number;
 	originalPrice: number | null;
@@ -47,14 +59,9 @@ export type CatalogDoc = {
 	sort: { name: string; price: string; dealPrice: string; discount: string };
 };
 
-type SourceSku = {
+type SourceSku = Omit<CatalogVariant, "skuId"> & {
+	id: string;
 	sourceExpiresAt?: Date | null;
-	color: string;
-	size: string;
-	price: number;
-	originalPrice: number | null;
-	discount: number;
-	imageUrl: string | null;
 };
 
 export type SourceProduct = {
@@ -73,65 +80,96 @@ export type SourceProduct = {
 };
 
 /** Distinct values as one TAG string; the index splits it on ",". */
+const facetValue = (value: string) => value.replaceAll(",", " ").trim();
 const tagList = (values: string[]) =>
-	[...new Set(values.map((value) => value.replaceAll(",", " ").trim()))]
-		.filter(Boolean)
-		.join(",");
+	[...new Set(values.map(facetValue))].filter(Boolean).join(",");
 
-/** Pure on purpose: it is the whole read model, and it is unit-tested. */
-export function buildCatalogDocs(products: SourceProduct[]): CatalogDoc[] {
-	const stocked = products.filter((p) => p.skus.length > 0);
+function earliestExpiry(skus: SourceSku[]) {
+	const earliest = skus.reduce(
+		(current, { sourceExpiresAt }) =>
+			Math.min(current, sourceExpiresAt?.getTime() ?? Infinity),
+		Infinity,
+	);
+	return earliest === Infinity ? undefined : Math.floor(earliest / 1000);
+}
 
-	return stocked
+function projectVariant({
+	id,
+	color,
+	size,
+	price,
+	originalPrice,
+	discount,
+	imageUrl,
+}: SourceSku): CatalogVariant {
+	return {
+		skuId: id,
+		color: facetValue(color),
+		size: facetValue(size),
+		price,
+		originalPrice,
+		discount,
+		imageUrl,
+	};
+}
+
+/** Projects an in-stock product for Redis Search. */
+export function buildCatalogDoc(
+	product: SourceProduct,
+): CatalogDoc | undefined {
+	const first = product.skus[0];
+	if (!first) return undefined;
+
+	const { skus, id, brand, name } = product;
+	const cheapest = skus.reduce((a, b) => (b.price < a.price ? b : a), first);
+	const deepest = skus.reduce(
+		(a, b) => (b.discount > a.discount ? b : a),
+		first,
+	);
+	const deal =
+		deepest.discount > 0 && deepest.originalPrice !== null
+			? {
+					price: deepest.price,
+					originalPrice: deepest.originalPrice,
+					imageUrl: deepest.imageUrl,
+				}
+			: null;
+
+	return {
+		checkedAt: product.lastSeenAt?.getTime(),
+		updatedAt: product.updatedAt?.getTime(),
+		expiresAt: earliestExpiry(skus),
+		id,
+		storeId: product.storeId,
+		slug: product.slug,
+		name,
+		brand: brand ?? undefined,
+		searchText: [brand, name].filter(Boolean).join(" "),
+		department: product.department,
+		category: product.category,
+		currency: product.currency,
+		colors: tagList(skus.map((sku) => sku.color)),
+		sizes: tagList(skus.map((sku) => sku.size)),
+		variants: skus.map(projectVariant),
+		price: cheapest.price,
+		originalPrice: cheapest.originalPrice,
+		imageUrl: cheapest.imageUrl,
+		discount: deepest.discount,
+		deal,
+		sort: {
+			name: `${name.toLowerCase()}:${id}`,
+			price: numericSort(cheapest.price, id),
+			dealPrice: numericSort(deal?.price ?? cheapest.price, id),
+			discount: numericSort(deepest.discount, id),
+		},
+	};
+}
+
+export function buildCatalogDocs(products: SourceProduct[]) {
+	return products
 		.toSorted((a, b) => a.id.localeCompare(b.id))
-		.map((p): CatalogDoc => {
-			const cheapest = p.skus.reduce((a, b) => (b.price < a.price ? b : a));
-			const deepest = p.skus.reduce((a, b) =>
-				b.discount > a.discount ? b : a,
-			);
-			const deal =
-				deepest.discount > 0 && deepest.originalPrice !== null
-					? {
-							price: deepest.price,
-							originalPrice: deepest.originalPrice,
-							imageUrl: deepest.imageUrl,
-						}
-					: null;
-
-			return {
-				checkedAt: p.lastSeenAt?.getTime(),
-				updatedAt: p.updatedAt?.getTime(),
-				expiresAt: p.skus.some((s) => s.sourceExpiresAt)
-					? Math.floor(
-							Math.min(
-								...p.skus.flatMap((s) =>
-									s.sourceExpiresAt ? [s.sourceExpiresAt.getTime()] : [],
-								),
-							) / 1000,
-						)
-					: undefined,
-				id: p.id,
-				storeId: p.storeId,
-				slug: p.slug,
-				name: p.name,
-				brand: p.brand ?? undefined,
-				searchText: [p.brand, p.name].filter(Boolean).join(" "),
-				department: p.department,
-				category: p.category,
-				currency: p.currency,
-				colors: tagList(p.skus.map((s) => s.color)),
-				sizes: tagList(p.skus.map((s) => s.size)),
-				price: cheapest.price,
-				originalPrice: cheapest.originalPrice,
-				imageUrl: cheapest.imageUrl,
-				discount: deepest.discount,
-				deal,
-				sort: {
-					name: `${p.name.toLowerCase()}:${p.id}`,
-					price: numericSort(cheapest.price, p.id),
-					dealPrice: numericSort(deal?.price ?? cheapest.price, p.id),
-					discount: numericSort(deepest.discount, p.id),
-				},
-			};
+		.flatMap((product) => {
+			const doc = buildCatalogDoc(product);
+			return doc ? [doc] : [];
 		});
 }

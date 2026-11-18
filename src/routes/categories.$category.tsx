@@ -50,8 +50,8 @@ function CategoryPage() {
 				key={scope.category}
 				scope={scope}
 				filters={filters}
-				onFiltersChange={(search) =>
-					navigate({ search, replace: true, resetScroll: false })
+				onFiltersChange={(update) =>
+					navigate({ search: update, replace: true, resetScroll: false })
 				}
 			/>
 		</Container>

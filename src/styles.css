@@ -7,7 +7,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* One violet-led palette, shared across the entire storefront. */
 :root {
 	--brand: #3b33b8;
 	--brand-accent: #c4d438;
@@ -17,7 +16,6 @@
 	--brand-tertiary: #7c3aed;
 }
 
-/* A softly tinted canvas keeps successive sections visually connected. */
 :root {
 	--background: #f6f4f8;
 	--foreground: #262333;
@@ -66,7 +64,6 @@
 	--sidebar-ring: #818cf8;
 }
 
-/* Dark theme */
 .dark {
 	--background: oklch(0.145 0 0);
 	--foreground: oklch(0.985 0 0);
@@ -106,7 +103,6 @@
 	--sidebar-ring: oklch(0.556 0 0);
 }
 
-/* Tailwind tokens */
 @theme inline {
 	--font-sans: "Figtree Variable", "Noto Sans Georgian Variable", sans-serif;
 	--font-heading: var(--font-sans);
@@ -169,7 +165,6 @@
 	--radius-4xl: calc(var(--radius-xl) * 2.5);
 }
 
-/* Typography */
 @utility type-display {
 	font-family: var(--font-sans);
 	font-style: normal;
@@ -221,7 +216,6 @@
 	letter-spacing: -0.01em;
 }
 
-/* Base styles */
 @layer base {
 	* {
 		@apply border-border outline-ring/50;
@@ -272,7 +266,6 @@
 	}
 }
 
-/* Premium shadow utilities */
 @layer utilities {
 	.shadow-premium-sm {
 		box-shadow:
@@ -317,7 +310,6 @@
 	}
 }
 
-/* Premium brand surfaces */
 .discovery-link {
 	display: flex;
 	align-items: center;
@@ -398,7 +390,6 @@
 	isolation: isolate;
 }
 
-/* The lighting belongs to the page, so it never restarts at a section edge. */
 .storefront-shell::before {
 	content: "";
 	position: fixed;
@@ -612,7 +603,6 @@
 	);
 }
 
-/* The sourcing layers form a small CSS 3D scene; no canvas or asset download. */
 .about-scene {
 	perspective: 1000px;
 	height: 300px;
@@ -669,7 +659,6 @@
 	}
 }
 
-/* A shared surface and selection treatment for menus, filters, and pickers. */
 .floating-panel {
 	border: 1px solid var(--border);
 	border-radius: var(--radius-lg);
@@ -703,7 +692,6 @@
 		color 140ms ease;
 }
 
-/* Native Base UI state attributes share one selected-state rule. */
 .category-link {
 	display: block;
 	min-height: 2.75rem;
@@ -738,7 +726,6 @@
 	color: var(--brand);
 }
 
-/* Hover only applies to unselected options, so it cannot override selection. */
 :is(
 	[data-slot="select-item"],
 	[data-slot="combobox-item"],
@@ -844,7 +831,6 @@
 	opacity: 0.65;
 }
 
-/* Reduced motion; unlayered to override animation utilities. */
 @media (prefers-reduced-motion: reduce) {
 	:root,
 	:root *,

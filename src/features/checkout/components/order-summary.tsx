@@ -1,10 +1,14 @@
+import type { ReactNode } from "react";
 import { LinkButton } from "#/components/link-button";
 import { Button } from "#/components/ui/button";
 import type { CartItem } from "#/features/cart/cart";
 import type { useCart } from "#/features/cart/use-cart";
 import { ProductImage } from "#/features/catalog/components/product-image";
 import { ShipmentDetails } from "#/features/shipping/shipment-details";
-import { groupShipments } from "#/features/shipping/shipping";
+import {
+	groupShipments,
+	type ShipmentQuote,
+} from "#/features/shipping/shipping";
 import { useTranslation } from "#/i18n/translate";
 import { usePriceFormatter } from "#/lib/price";
 import type { CheckoutQuote } from "../checkout";
@@ -43,46 +47,71 @@ function OrderItems({ items }: { items: CartItem[] }) {
 	);
 }
 
-export function OrderSummary({ quote }: { quote: CheckoutQuote }) {
+function SummaryCard({ children }: { children: ReactNode }) {
 	const t = useTranslation();
-	const { formatPrice } = usePriceFormatter();
-	const usd = (value: number) => formatPrice(value, "USD");
 	return (
 		<div className="space-y-6 rounded-lg border border-border/80 bg-card p-5 shadow-premium-sm sm:p-6">
 			<h2 className="type-title border-b border-border/70 pb-5 text-xl">
 				{t("Order summary")}
 			</h2>
-			{quote.shipments ? (
-				quote.shipments.map((shipment, index) => {
-					const items = quote.lines
-						.filter((line) => shipment.itemIds.includes(line.id))
-						.map((line) => ({
-							...line,
-							price: line.usdPrice,
-							currency: "USD",
-						}));
-					return (
-						<section key={shipment.groupId} className="space-y-5">
-							<ShipmentDetails
-								className="rounded-md border border-border/60 bg-background/70 p-4"
-								number={index + 1}
-								items={items}
-								quote={shipment}
-							/>
-							<OrderItems items={items} />
-						</section>
-					);
-				})
-			) : (
-				<OrderItems
-					items={quote.lines.map((line) => ({
-						...line,
-						price: line.usdPrice,
-						currency: "USD",
-					}))}
-				/>
-			)}
+			{children}
+		</div>
+	);
+}
 
+function ShipmentItems({
+	number,
+	items,
+	quote,
+}: {
+	number: number;
+	items: CartItem[];
+	quote?: ShipmentQuote;
+}) {
+	return (
+		<section className="space-y-5">
+			<ShipmentDetails
+				className="rounded-md border border-border/60 bg-background/70 p-4"
+				number={number}
+				items={items}
+				quote={quote}
+			/>
+			<OrderItems items={items} />
+		</section>
+	);
+}
+
+export function OrderSummary({ quote }: { quote: CheckoutQuote }) {
+	const items = quote.lines.map((line) => ({
+		...line,
+		price: line.usdPrice,
+		currency: "USD",
+	}));
+	return (
+		<SummaryCard>
+			{quote.shipments ? (
+				quote.shipments.map((shipment, index) => (
+					<ShipmentItems
+						key={shipment.groupId}
+						number={index + 1}
+						items={items.filter((item) => shipment.itemIds.includes(item.id))}
+						quote={shipment}
+					/>
+				))
+			) : (
+				<OrderItems items={items} />
+			)}
+			<OrderTotals quote={quote} />
+		</SummaryCard>
+	);
+}
+
+function OrderTotals({ quote }: { quote: CheckoutQuote }) {
+	const t = useTranslation();
+	const { formatPrice } = usePriceFormatter();
+	const usd = (value: number) => formatPrice(value, "USD");
+	return (
+		<>
 			<dl className="space-y-3 border-t pt-4 text-sm [&>div]:flex [&>div]:flex-wrap [&>div]:justify-between [&>div]:gap-x-3 [&>div]:gap-y-1 [&_dd]:font-medium [&_dd]:tabular-nums">
 				<div>
 					<dt>{t("Items")}</dt>
@@ -116,7 +145,7 @@ export function OrderSummary({ quote }: { quote: CheckoutQuote }) {
 					"Service fee applies to items only. Shipping is charged separately for each warehouse.",
 				)}
 			</p>
-		</div>
+		</>
 	);
 }
 
@@ -124,10 +153,7 @@ export function CartSummary({ cart }: { cart: ReturnType<typeof useCart> }) {
 	const t = useTranslation();
 	const { formatPrice } = usePriceFormatter();
 	return (
-		<div className="space-y-6 rounded-lg border border-border/80 bg-card p-5 shadow-premium-sm sm:p-6">
-			<h2 className="type-title border-b border-border/70 pb-5 text-xl">
-				{t("Order summary")}
-			</h2>
+		<SummaryCard>
 			{cart.isPending ? (
 				<p role="status">{t("Loading your cart…")}</p>
 			) : cart.isError ? (
@@ -149,14 +175,11 @@ export function CartSummary({ cart }: { cart: ReturnType<typeof useCart> }) {
 			) : (
 				<>
 					{groupShipments(cart.items).map((group, index) => (
-						<section key={group.groupId} className="space-y-5">
-							<ShipmentDetails
-								className="rounded-md border border-border/60 bg-background/70 p-4"
-								number={index + 1}
-								items={group.lines}
-							/>
-							<OrderItems items={group.lines} />
-						</section>
+						<ShipmentItems
+							key={group.groupId}
+							number={index + 1}
+							items={group.lines}
+						/>
 					))}
 					<div className="flex flex-wrap justify-between gap-2 border-t pt-4 font-semibold">
 						<span>{t("Subtotal")}</span>
@@ -169,6 +192,6 @@ export function CartSummary({ cart }: { cart: ReturnType<typeof useCart> }) {
 					</p>
 				</>
 			)}
-		</div>
+		</SummaryCard>
 	);
 }

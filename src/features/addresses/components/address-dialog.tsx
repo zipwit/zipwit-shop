@@ -140,7 +140,6 @@ function AddressForm({ address, firstAddress, onDone }: AddressFormProps) {
 	const t = useTranslation();
 	const save = useSaveAddress();
 	const primaryId = useId();
-	// An account always has a primary address, so these cases can't be unticked.
 	const lockedPrimary = Boolean(address?.isPrimary) || firstAddress;
 
 	const form = useAppForm({

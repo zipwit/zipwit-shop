@@ -1,8 +1,6 @@
 #!/bin/sh
 set -eu
 
-# The app and every node share the Compose network; no Redis ports are published.
-# An existing cluster is preserved. Never reset nodes or delete their data here.
 if ! redis-cli -h redis-1 CLUSTER INFO | tr -d '\r' | grep -q '^cluster_slots_assigned:16384$'; then
   redis-cli --cluster create redis-1:6379 redis-2:6379 redis-3:6379 --cluster-replicas 0 --cluster-yes
 fi

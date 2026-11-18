@@ -36,7 +36,6 @@ export function DateInput({
 	const time = isDateTime && date ? format(date, "HH:mm:ss") : "";
 	const [open, setOpen] = useState(false);
 
-	// The parent form owns the complete date/time value.
 	return (
 		<Field data-invalid={isInvalid}>
 			<FieldLabel htmlFor={`${name}-date`}>{field.label}</FieldLabel>

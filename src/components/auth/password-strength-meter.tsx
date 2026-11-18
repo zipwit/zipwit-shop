@@ -27,6 +27,7 @@ export type PasswordStrengthMeterProps = {
 /**
  * Four-segment strength hint shown while someone picks a new password.
  *
+ * A live region announces the strength. The segments are decorative.
  * Renders nothing when `emailAndPassword.strengthMeter` is off or the field is
  * empty. The score never gates submission: your server rules stay the
  * authority on what is acceptable.
@@ -54,7 +55,6 @@ export function PasswordStrengthMeter({
 
 	return (
 		<div className={cn("flex flex-col gap-1.5", className)}>
-			{/* Decorative: the live region below is what gets announced. */}
 			<div aria-hidden="true" className="flex gap-1">
 				{STRENGTH_SEGMENTS.map((segment) => (
 					<span

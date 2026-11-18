@@ -1,21 +1,18 @@
+import { getAuthLinkURL } from "@better-auth-ui/core";
 import {
 	useAuth,
 	useFetchOptions,
 	useSignInEmail,
 } from "@better-auth-ui/react";
 import { useAppForm } from "#/components/form/app-form";
+import { useAuthReturnTo } from "#/features/auth/auth-return-to";
 import { VERIFY_EMAIL_STORAGE_KEY } from "./storage-keys";
 import { useAuthPending } from "./use-auth-pending";
 
 export function useSignInForm() {
-	const {
-		authClient,
-		basePaths,
-		emailAndPassword,
-		redirectTo,
-		viewPaths,
-		navigate,
-	} = useAuth();
+	const { authClient, basePaths, emailAndPassword, viewPaths, navigate } =
+		useAuth();
+	const redirectTo = useAuthReturnTo();
 	const isPending = useAuthPending();
 	const { fetchOptions, resetFetchOptions } = useFetchOptions();
 	const { mutateAsync: signInEmail, isPending: isSigningIn } = useSignInEmail(
@@ -25,7 +22,12 @@ export function useSignInForm() {
 				form.setFieldValue("password", "");
 				if (error.error?.code === "EMAIL_NOT_VERIFIED") {
 					sessionStorage.setItem(VERIFY_EMAIL_STORAGE_KEY, email);
-					navigate({ to: `${basePaths.auth}/${viewPaths.auth.verifyEmail}` });
+					navigate({
+						to: getAuthLinkURL(
+							`${basePaths.auth}/${viewPaths.auth.verifyEmail}`,
+							redirectTo,
+						),
+					});
 				}
 				resetFetchOptions();
 			},

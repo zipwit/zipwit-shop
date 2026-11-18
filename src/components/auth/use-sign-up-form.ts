@@ -11,6 +11,7 @@ import {
 	useSignUpEmail,
 } from "@better-auth-ui/react";
 import { useMemo, useState } from "react";
+import { useAuthReturnTo } from "#/features/auth/auth-return-to";
 import { useAuthForm } from "./auth-form";
 import { VERIFY_EMAIL_STORAGE_KEY } from "./storage-keys";
 import { useAuthPending } from "./use-auth-pending";
@@ -22,17 +23,15 @@ export function useSignUpForm(onSignUpSuccess?: () => void) {
 		basePaths,
 		baseURL,
 		emailAndPassword,
-		redirectTo,
 		viewPaths,
 		navigate,
 	} = useAuth();
+	const redirectTo = useAuthReturnTo();
 
 	const { fetchOptions, resetFetchOptions } = useFetchOptions();
 
 	const { mutateAsync: signUpEmail } = useSignUpEmail(authClient, {
 		onError: (error) => {
-			// The haveIBeenPwned plugin rejects on the password itself,
-			// so it belongs against the field rather than in a toast.
 			if (isPasswordCompromisedError(error)) {
 				setIsCompromised(true);
 			}
@@ -87,9 +86,7 @@ export function useSignUpForm(onSignUpSuccess?: () => void) {
 					callbackURL: getAuthCallbackURL(baseURL, redirectTo),
 					fetchOptions,
 				});
-			} catch {
-				// The mutation reports the error through its configured handler.
-			}
+			} catch {}
 		},
 	});
 

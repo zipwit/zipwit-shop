@@ -5,7 +5,11 @@ import { StoreLabel } from "#/features/stores/store-label";
 import { useTranslation } from "#/i18n/translate";
 import { usePriceFormatter } from "#/lib/price";
 import { cn } from "#/lib/utils";
-import { estimateShipment, type ShipmentQuote } from "./shipping";
+import {
+	estimateShipment,
+	getShipmentRule,
+	type ShipmentQuote,
+} from "./shipping";
 
 export function ShipmentDetails({
 	number,
@@ -27,7 +31,7 @@ export function ShipmentDetails({
 	const { formatPrice } = usePriceFormatter();
 	const usd = (value: number) => formatPrice(value, "USD");
 	const amounts = quote ?? estimateShipment(items);
-	const rule = quote?.rule ?? items[0]?.shipping?.rule;
+	const rule = amounts?.rule ?? getShipmentRule(items);
 	const remaining =
 		amounts && rule?.freeFromUsd != null
 			? Math.max(0, rule.freeFromUsd - amounts.subtotalUsd)

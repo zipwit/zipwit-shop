@@ -28,7 +28,6 @@ export function SearchBox({ value, onCommit, className }: SearchBoxProps) {
 		onCommit(next);
 	}, 250);
 
-	// Follow changes made elsewhere (a removed chip, "Clear all") without ever fighting the typing.
 	useEffect(() => {
 		if (value !== committed.current) {
 			commit.cancel();
@@ -58,6 +57,7 @@ export function SearchBox({ value, onCommit, className }: SearchBoxProps) {
 					</InputGroupAddon>
 					<InputGroupInput
 						type="search"
+						maxLength={80}
 						autoComplete="off"
 						placeholder={t("Search all products")}
 						aria-label={t("Search products")}

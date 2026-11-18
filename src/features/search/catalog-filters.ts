@@ -46,6 +46,7 @@ export const catalogFiltersSchema = z.object({
 	sort: z.enum(catalogSorts).optional().catch(undefined),
 });
 export type CatalogFilters = z.infer<typeof catalogFiltersSchema>;
+export type UpdateCatalogFilters = (previous: CatalogFilters) => CatalogFilters;
 
 export const DEFAULT_FILTERS: CatalogFilters = catalogFiltersSchema.parse({});
 

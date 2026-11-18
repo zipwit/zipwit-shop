@@ -1,7 +1,12 @@
+import { z } from "zod";
 import type { CartItem } from "#/features/cart/cart";
 
 /** USD cents, charged once per warehouse. Null means no free-shipping threshold. */
-export type ShippingRule = { flatRateUsd: number; freeFromUsd: number | null };
+export const shippingRuleSchema = z.object({
+	flatRateUsd: z.number().int().min(0).max(100_000),
+	freeFromUsd: z.number().int().min(0).max(2_000_000_000).nullable(),
+});
+export type ShippingRule = z.infer<typeof shippingRuleSchema>;
 export type ItemShipping = {
 	groupId: string;
 	rule: ShippingRule | null;
@@ -16,19 +21,23 @@ export type ShipmentQuote = {
 	rule: ShippingRule;
 };
 
-export function validShippingRule(
-	rule: ShippingRule | null | undefined,
-): rule is ShippingRule {
-	return (
-		!!rule &&
-		Number.isSafeInteger(rule.flatRateUsd) &&
-		rule.flatRateUsd >= 0 &&
-		rule.flatRateUsd <= 100_000 &&
-		(rule.freeFromUsd === null ||
-			(Number.isSafeInteger(rule.freeFromUsd) &&
-				rule.freeFromUsd >= 0 &&
-				rule.freeFromUsd <= 2_000_000_000))
+/** All lines in a warehouse shipment must agree on the rate and threshold. */
+export function getShipmentRule(items: CartItem[]) {
+	const shipping = items[0]?.shipping;
+	if (
+		!shipping?.groupId ||
+		!shipping.rule ||
+		!shippingRuleSchema.safeParse(shipping.rule).success
+	)
+		return null;
+	const { groupId, rule } = shipping;
+	const consistent = items.every(
+		(item) =>
+			item.shipping?.groupId === groupId &&
+			item.shipping.rule?.flatRateUsd === rule.flatRateUsd &&
+			item.shipping.rule.freeFromUsd === rule.freeFromUsd,
 	);
+	return consistent ? rule : null;
 }
 
 export function shippingCharge(subtotalUsd: number, rule: ShippingRule) {
@@ -52,8 +61,8 @@ export function groupShipments<T extends CartItem>(items: T[]) {
 }
 
 export function estimateShipment(items: CartItem[]) {
-	const rule = items[0]?.shipping?.rule;
-	if (!validShippingRule(rule)) return null;
+	const rule = getShipmentRule(items);
+	if (!rule) return null;
 	let subtotalUsd = 0;
 	for (const item of items) {
 		const unit = item.shipping?.estimatedUnitUsd;

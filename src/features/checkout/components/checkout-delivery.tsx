@@ -6,7 +6,7 @@ import { addressesQuery } from "#/features/addresses/address.queries";
 import { AddressDialog } from "#/features/addresses/components/address-dialog";
 import { CartAvailabilityNotice } from "#/features/cart/components/cart-availability-notice";
 import { useCart, useCartUpdating } from "#/features/cart/use-cart";
-import { validShippingRule } from "#/features/shipping/shipping";
+import { getShipmentRule, groupShipments } from "#/features/shipping/shipping";
 import { useTranslation } from "#/i18n/translate";
 import { isUsCountry } from "../checkout";
 import { CheckoutAddressPicker } from "./checkout-address";
@@ -71,7 +71,9 @@ export function CheckoutDelivery({
 					cartUpdating ||
 					!cart.items.length ||
 					cart.unavailableIds.length > 0 ||
-					cart.items.some((item) => !validShippingRule(item.shipping?.rule)) ||
+					groupShipments(cart.items).some(
+						({ lines }) => !getShipmentRule(lines),
+					) ||
 					Boolean(busy)
 				}
 				onClick={() => selected && onPrepare(selected.id)}

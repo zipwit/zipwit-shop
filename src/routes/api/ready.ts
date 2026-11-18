@@ -9,10 +9,8 @@ export const Route = createFileRoute("/api/ready")({
 			GET: async () => {
 				const headers = { "Cache-Control": "no-store" };
 				try {
-					await Promise.all([
-						db.execute(sql`select 1`),
-						(await getRedis()).get("ready:probe"),
-					]);
+					db.get(sql`select 1`);
+					await (await getRedis()).get("ready:probe");
 					return Response.json({ status: "ready" }, { headers });
 				} catch {
 					return Response.json(

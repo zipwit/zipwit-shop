@@ -13,9 +13,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as DealsRouteImport } from './routes/deals'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as DepartmentChar123CategoryChar125RouteImport } from './routes/$department.{-$category}'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiReadyRouteImport } from './routes/api/ready'
 import { Route as AuthPathRouteImport } from './routes/auth/$path'
 import { Route as CategoriesCategoryRouteImport } from './routes/categories.$category'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
@@ -43,6 +45,11 @@ const DealsRoute = DealsRouteImport.update({
   path: '/deals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
@@ -57,6 +64,11 @@ const DepartmentChar123CategoryChar125Route =
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReadyRoute = ApiReadyRouteImport.update({
+  id: '/api/ready',
+  path: '/api/ready',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthPathRoute = AuthPathRouteImport.update({
@@ -95,9 +107,11 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/checkout': typeof CheckoutRoute
   '/deals': typeof DealsRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$department/{-$category}': typeof DepartmentChar123CategoryChar125Route
   '/api/health': typeof ApiHealthRoute
+  '/api/ready': typeof ApiReadyRoute
   '/auth/$path': typeof AuthPathRoute
   '/categories/$category': typeof CategoriesCategoryRoute
   '/product/$slug': typeof ProductSlugRoute
@@ -110,9 +124,11 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/checkout': typeof CheckoutRoute
   '/deals': typeof DealsRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$department/{-$category}': typeof DepartmentChar123CategoryChar125Route
   '/api/health': typeof ApiHealthRoute
+  '/api/ready': typeof ApiReadyRoute
   '/auth/$path': typeof AuthPathRoute
   '/categories/$category': typeof CategoriesCategoryRoute
   '/product/$slug': typeof ProductSlugRoute
@@ -126,9 +142,11 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/checkout': typeof CheckoutRoute
   '/deals': typeof DealsRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$department/{-$category}': typeof DepartmentChar123CategoryChar125Route
   '/api/health': typeof ApiHealthRoute
+  '/api/ready': typeof ApiReadyRoute
   '/auth/$path': typeof AuthPathRoute
   '/categories/$category': typeof CategoriesCategoryRoute
   '/product/$slug': typeof ProductSlugRoute
@@ -143,9 +161,11 @@ export interface FileRouteTypes {
     | '/about'
     | '/checkout'
     | '/deals'
+    | '/robots.txt'
     | '/sitemap.xml'
     | '/$department/{-$category}'
     | '/api/health'
+    | '/api/ready'
     | '/auth/$path'
     | '/categories/$category'
     | '/product/$slug'
@@ -158,9 +178,11 @@ export interface FileRouteTypes {
     | '/about'
     | '/checkout'
     | '/deals'
+    | '/robots.txt'
     | '/sitemap.xml'
     | '/$department/{-$category}'
     | '/api/health'
+    | '/api/ready'
     | '/auth/$path'
     | '/categories/$category'
     | '/product/$slug'
@@ -173,9 +195,11 @@ export interface FileRouteTypes {
     | '/about'
     | '/checkout'
     | '/deals'
+    | '/robots.txt'
     | '/sitemap.xml'
     | '/$department/{-$category}'
     | '/api/health'
+    | '/api/ready'
     | '/auth/$path'
     | '/categories/$category'
     | '/product/$slug'
@@ -189,9 +213,11 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   CheckoutRoute: typeof CheckoutRoute
   DealsRoute: typeof DealsRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   DepartmentChar123CategoryChar125Route: typeof DepartmentChar123CategoryChar125Route
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiReadyRoute: typeof ApiReadyRoute
   AuthPathRoute: typeof AuthPathRoute
   CategoriesCategoryRoute: typeof CategoriesCategoryRoute
   ProductSlugRoute: typeof ProductSlugRoute
@@ -230,6 +256,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DealsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sitemap.xml': {
       id: '/sitemap.xml'
       path: '/sitemap.xml'
@@ -249,6 +282,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ready': {
+      id: '/api/ready'
+      path: '/api/ready'
+      fullPath: '/api/ready'
+      preLoaderRoute: typeof ApiReadyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/$path': {
@@ -301,9 +341,11 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   CheckoutRoute: CheckoutRoute,
   DealsRoute: DealsRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   DepartmentChar123CategoryChar125Route: DepartmentChar123CategoryChar125Route,
   ApiHealthRoute: ApiHealthRoute,
+  ApiReadyRoute: ApiReadyRoute,
   AuthPathRoute: AuthPathRoute,
   CategoriesCategoryRoute: CategoriesCategoryRoute,
   ProductSlugRoute: ProductSlugRoute,

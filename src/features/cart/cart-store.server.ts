@@ -12,7 +12,7 @@ const MAX_ADD_ATTEMPTS = 8;
 
 type CartRedis = Pick<
 	Awaited<ReturnType<typeof getRedis>>,
-	"hKeys" | "hGetAll" | "eval"
+	"hKeys" | "hGetAll" | "eval" | "del"
 >;
 type FindAvailableSkus = (
 	ids: string[],
@@ -50,14 +50,24 @@ return 1
 `;
 
 const removePurchasedScript = `
-for i = 1, #ARGV, 2 do
-	local quantity = tonumber(redis.call('HGET', KEYS[1], ARGV[i]) or '0')
+local now = redis.call('TIME')
+if now[1] * 1000 + math.floor(now[2] / 1000) >= tonumber(ARGV[1]) then
+	return redis.error_reply('Cart cleanup lease expired')
+end
+if redis.call('EXISTS', KEYS[2]) ~= 0 then return 0 end
+for i = 2, #ARGV, 2 do
+	local quantity = tonumber(redis.call('HGET', KEYS[1], ARGV[i])) or 0
 	local remaining = quantity - tonumber(ARGV[i + 1])
 	if remaining > 0 then redis.call('HSET', KEYS[1], ARGV[i], remaining)
 	else redis.call('HDEL', KEYS[1], ARGV[i]) end
 end
+redis.call('SET', KEYS[2], '1')
 return 1
 `;
+
+/** Places the cleanup marker in the same Redis Cluster slot as the existing cart. */
+const cleanupKey = (cartKey: string, orderId: string) =>
+	`cart-cleanup:{${cartKey}}:${orderId}`;
 
 /**
  * Currency comes from the catalog. An add commits only if the SKU membership
@@ -142,12 +152,21 @@ return 1
 		/** Subtract purchased quantities without discarding additions from another tab. */
 		async removePurchased(
 			key: string,
+			orderId: string,
 			items: { id: string; quantity: number }[],
+			deadline: Date,
 		) {
 			await redis.eval(removePurchasedScript, {
-				keys: [key],
-				arguments: items.flatMap((item) => [item.id, String(item.quantity)]),
+				keys: [key, cleanupKey(key, orderId)],
+				arguments: [
+					String(deadline.getTime()),
+					...items.flatMap((item) => [item.id, String(item.quantity)]),
+				],
 			});
+		},
+
+		async acknowledgePurchaseCleanup(key: string, orderId: string) {
+			await redis.del(cleanupKey(key, orderId));
 		},
 	};
 }

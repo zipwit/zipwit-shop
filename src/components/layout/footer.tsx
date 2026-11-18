@@ -17,7 +17,6 @@ function FooterHeading({ children }: { children: string }) {
 
 export function Footer() {
 	const t = useTranslation();
-	// Accounts without a link yet stay out of the footer.
 	const links = socials.flatMap((s) =>
 		s.href ? [{ ...s, href: s.href }] : [],
 	);

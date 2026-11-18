@@ -16,6 +16,7 @@ import {
 import { useEffect } from "react";
 import { toast } from "sonner";
 
+/** Presents auth errors that opt into toasts. Password forms display compromised-password errors on the field. */
 export function ErrorToaster() {
 	const { localization } = useAuth();
 	const queryClient = useQueryClient();
@@ -60,8 +61,6 @@ export function ErrorToaster() {
 				return;
 			}
 			if (getAuthErrorPresentation(mutation.meta) !== "toast") return;
-			// Every form that sets a new password renders this one against the
-			// password field, so a toast would just repeat it.
 			if (isPasswordCompromisedError(error)) return;
 
 			if (

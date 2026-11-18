@@ -1,9 +1,7 @@
-# Disposable Redis Cluster for host-run checks and CI. Linux host networking keeps
-# every advertised address reachable without Docker NAT or port rewriting.
 name: zipwit-cluster-check
 
 x-node: &node
-  image: redis:8.10.2-alpine
+  image: redis:8.10.3-alpine
   network_mode: host
   tmpfs:
     - /data:uid=999,gid=999
@@ -17,23 +15,6 @@ x-node: &node
     retries: 15
 
 services:
-  db:
-    image: postgres:18.6-alpine
-    environment:
-      POSTGRES_USER: catalog_test
-      POSTGRES_PASSWORD: catalog_test
-      POSTGRES_DB: zipwit_catalog_test
-    ports:
-      - "127.0.0.1:15439:5432"
-    tmpfs:
-      - /var/lib/postgresql
-    healthcheck:
-      test:
-        ["CMD", "pg_isready", "-U", "catalog_test", "-d", "zipwit_catalog_test"]
-      interval: 2s
-      timeout: 3s
-      retries: 15
-
   redis-1:
     <<: *node
     environment:
@@ -95,7 +76,7 @@ services:
       ]
 
   redis-cluster-init:
-    image: redis:8.10.2-alpine
+    image: redis:8.10.3-alpine
     network_mode: host
     entrypoint:
       [

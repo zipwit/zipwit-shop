@@ -35,8 +35,6 @@ export function AccountSettings({
 	)?.cardOverrides?.account?.changeEmail;
 	const ChangeEmailCard = ChangeEmailOverride ?? ChangeEmail;
 
-	// A plugin that replaces the card brings its own way to confirm the change,
-	// so it can stand on its own without password or magic-link auth.
 	const showChangeEmail =
 		emailAndPassword?.enabled || hasMagicLink || Boolean(ChangeEmailOverride);
 

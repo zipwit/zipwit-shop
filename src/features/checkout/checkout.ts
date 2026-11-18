@@ -40,8 +40,6 @@ export type CheckoutPricing = {
 	gelPerUsd: number;
 	rateDate: string;
 	serviceFeeBps: number;
-	/** Retained only when reading an old pricing snapshot. */
-	shippingUsd?: number;
 	iban: string;
 };
 type CheckoutLine = CartItem & { usdPrice: number; usdTotal: number };

@@ -3,7 +3,7 @@ import { env } from "#/server/env.server";
 import type { CheckoutPricing } from "./checkout";
 import { getGelPerUsd } from "./exchange-rate.server";
 
-export function validIban(value: string) {
+export function isValidIban(value: string) {
 	if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(value)) return false;
 	const digits = `${value.slice(4)}${value.slice(0, 4)}`.replace(
 		/[A-Z]/g,
@@ -18,7 +18,7 @@ const settingsSchema = z.object({
 	CHECKOUT_IBAN: z
 		.string()
 		.transform((s) => s.replace(/\s/g, "").toUpperCase())
-		.refine(validIban),
+		.refine(isValidIban),
 	CHECKOUT_SERVICE_FEE_BPS: z
 		.string()
 		.min(1)
@@ -31,10 +31,9 @@ const settingsSchema = z.object({
 export function checkoutSettings(source: Record<string, unknown> = env) {
 	const parsed = settingsSchema.safeParse(source);
 	if (!parsed.success) return null;
-	const e = parsed.data;
 	return {
-		iban: e.CHECKOUT_IBAN,
-		serviceFeeBps: e.CHECKOUT_SERVICE_FEE_BPS,
+		iban: parsed.data.CHECKOUT_IBAN,
+		serviceFeeBps: parsed.data.CHECKOUT_SERVICE_FEE_BPS,
 	};
 }
 

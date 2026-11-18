@@ -1,10 +1,11 @@
-import { validateEmailAddress } from "@better-auth-ui/core";
+import { getAuthLinkURL, validateEmailAddress } from "@better-auth-ui/core";
 import { useAuth, useFetchOptions } from "@better-auth-ui/react";
 import { useRequestPasswordResetOtp } from "@better-auth-ui/react/plugins/email-otp";
 import { useAppForm } from "#/components/form/app-form";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { FieldDescription, FieldGroup } from "#/components/ui/field";
 import { authClient } from "#/features/auth/auth-client";
+import { useAuthReturnTo } from "#/features/auth/auth-return-to";
 import { useMessages } from "#/i18n/messages";
 import { cn } from "#/lib/utils";
 import { RESET_PASSWORD_EMAIL_STORAGE_KEY } from "./storage-keys";
@@ -18,6 +19,7 @@ export function ForgotPassword({ className }: ForgotPasswordProps) {
 	const messages = useMessages();
 	const { basePaths, localization, navigate, plugins, viewPaths, Link } =
 		useAuth();
+	const redirectTo = useAuthReturnTo();
 
 	const { fetchOptions, resetFetchOptions } = useFetchOptions();
 
@@ -28,7 +30,12 @@ export function ForgotPassword({ className }: ForgotPasswordProps) {
 			},
 			onSuccess: (_data, { email }) => {
 				sessionStorage.setItem(RESET_PASSWORD_EMAIL_STORAGE_KEY, email);
-				navigate({ to: `${basePaths.auth}/${viewPaths.auth.resetPassword}` });
+				navigate({
+					to: getAuthLinkURL(
+						`${basePaths.auth}/${viewPaths.auth.resetPassword}`,
+						redirectTo,
+					),
+				});
 			},
 		});
 
@@ -98,7 +105,10 @@ export function ForgotPassword({ className }: ForgotPasswordProps) {
 					<FieldDescription className="text-center">
 						{localization.auth.rememberYourPassword}{" "}
 						<Link
-							href={`${basePaths.auth}/${viewPaths.auth.signIn}`}
+							href={getAuthLinkURL(
+								`${basePaths.auth}/${viewPaths.auth.signIn}`,
+								redirectTo,
+							)}
 							className="underline underline-offset-4"
 						>
 							{localization.auth.signIn}

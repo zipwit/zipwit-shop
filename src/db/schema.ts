@@ -1,32 +1,28 @@
 import { defineRelations, sql } from "drizzle-orm";
 import {
-	boolean,
 	check,
 	index,
 	integer,
-	jsonb,
-	pgEnum,
-	pgTable,
+	sqliteTable,
 	text,
-	timestamp,
 	uniqueIndex,
-	uuid,
-} from "drizzle-orm/pg-core";
+} from "drizzle-orm/sqlite-core";
 import { account, user } from "#/db/auth-schema";
 import type {
 	CheckoutAddress,
 	CheckoutQuote,
 } from "#/features/checkout/checkout";
+import { dueAt, timestamp, timestamps } from "./columns";
 
 export * from "./auth-schema";
 
-export const orderStatusEnum = pgEnum("order_status", [
+const orderStatuses = [
 	"pending",
 	"paid",
 	"shipped",
 	"delivered",
 	"cancelled",
-]);
+] as const;
 
 export type ShippingAddress = {
 	fullName: string;
@@ -39,53 +35,56 @@ export type ShippingAddress = {
 	country: string;
 };
 
-const timestamps = {
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.$onUpdate(() => new Date())
-		.notNull(),
-};
-
-export const orders = pgTable(
+/** Orders retain the pricing and bank instructions shown at submission. */
+export const orders = sqliteTable(
 	"orders",
 	{
-		id: uuid("id").primaryKey().defaultRandom(),
+		id: text("id")
+			.notNull()
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "restrict" }),
-		status: orderStatusEnum("status").notNull().default("pending"),
+		status: text("status", { enum: orderStatuses })
+			.notNull()
+			.default("pending"),
 		total: integer("total").notNull(),
 		currency: text("currency").notNull(),
-		// Historical pricing and bank instructions remain immutable after submission.
-		checkoutQuote: jsonb("checkout_quote").$type<CheckoutQuote>(),
+		checkoutQuote: text("checkout_quote", {
+			mode: "json",
+		}).$type<CheckoutQuote>(),
 		customerName: text("customer_name"),
 		customerEmail: text("customer_email"),
-		shippingAddress: jsonb("shipping_address")
+		shippingAddress: text("shipping_address", { mode: "json" })
 			.$type<ShippingAddress>()
 			.notNull(),
 		...timestamps,
 	},
 	(t) => [
+		check(
+			"orders_status_valid",
+			sql`${t.status} in ('pending', 'paid', 'shipped', 'delivered', 'cancelled')`,
+		),
 		index("orders_user_idx").on(t.userId),
 		check("orders_total_positive", sql`${t.total} > 0`),
 	],
 );
 
-/** Private, server-owned checkout draft. Its UUID becomes the final order ID. */
-export const checkoutSession = pgTable(
+/** Stores checkout drafts and payment evidence privately. The draft UUID becomes the order ID. */
+export const checkoutSession = sqliteTable(
 	"checkout_session",
 	{
-		id: uuid("id").primaryKey(),
+		id: text("id").notNull().primaryKey(),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "restrict" }),
-		quote: jsonb("quote").$type<CheckoutQuote>().notNull(),
-		shippingAddress: jsonb("shipping_address")
+		quote: text("quote", { mode: "json" }).$type<CheckoutQuote>().notNull(),
+		shippingAddress: text("shipping_address", { mode: "json" })
 			.$type<CheckoutAddress>()
 			.notNull(),
 		expiresAt: timestamp("expires_at").notNull(),
-		// Kept in the private database, never exposed as a public file URL.
+		cartId: text("cart_id"),
 		proofBase64: text("proof_base64"),
 		proofType: text("proof_type"),
 		submittedAt: timestamp("submitted_at"),
@@ -94,17 +93,36 @@ export const checkoutSession = pgTable(
 	(t) => [index("checkout_session_user_idx").on(t.userId)],
 );
 
+export const orderCartCleanup = sqliteTable(
+	"order_cart_cleanup",
+	{
+		orderId: text("order_id")
+			.notNull()
+			.primaryKey()
+			.references(() => orders.id, { onDelete: "cascade" }),
+		cartId: text("cart_id").notNull(),
+		lines: text("lines", { mode: "json" })
+			.$type<{ id: string; quantity: number }[]>()
+			.notNull(),
+		nextAttemptAt: dueAt(),
+	},
+	(t) => [index("order_cart_cleanup_due_idx").on(t.nextAttemptAt)],
+);
+
 /** Transactional notification queue; a worker retries Telegram independently of checkout. */
-export const orderNotification = pgTable(
+export const orderNotification = sqliteTable(
 	"order_notification",
 	{
-		orderId: uuid("order_id")
+		orderId: text("order_id")
+			.notNull()
 			.primaryKey()
 			.references(() => orders.id, { onDelete: "cascade" }),
 		nextMessage: integer("next_message").notNull().default(0),
-		proofSent: boolean("proof_sent").notNull().default(false),
+		proofSent: integer("proof_sent", { mode: "boolean" })
+			.notNull()
+			.default(false),
 		attempts: integer("attempts").notNull().default(0),
-		nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+		nextAttemptAt: dueAt(),
 		leaseUntil: timestamp("lease_until"),
 		sentAt: timestamp("sent_at"),
 	},
@@ -115,15 +133,18 @@ export const orderNotification = pgTable(
 	],
 );
 
-export const orderItem = pgTable(
+/** Stores purchased SKU snapshots independently of the live catalog. */
+export const orderItem = sqliteTable(
 	"order_item",
 	{
-		id: uuid("id").primaryKey().defaultRandom(),
-		orderId: uuid("order_id")
+		id: text("id")
+			.notNull()
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		orderId: text("order_id")
 			.notNull()
 			.references(() => orders.id, { onDelete: "cascade" }),
-		// Catalog identity is a snapshot, not a foreign key into the live Redis catalog.
-		skuId: uuid("sku_id"),
+		skuId: text("sku_id"),
 		name: text("name").notNull(),
 		price: integer("price").notNull(),
 		quantity: integer("quantity").notNull().default(1),
@@ -138,10 +159,13 @@ export const orderItem = pgTable(
 	],
 );
 
-export const address = pgTable(
+export const address = sqliteTable(
 	"address",
 	{
-		id: uuid("id").primaryKey().defaultRandom(),
+		id: text("id")
+			.notNull()
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
@@ -153,12 +177,13 @@ export const address = pgTable(
 		state: text("state").notNull(),
 		postalCode: text("postal_code").notNull(),
 		country: text("country").notNull(),
-		isPrimary: boolean("is_primary").notNull().default(false),
+		isPrimary: integer("is_primary", { mode: "boolean" })
+			.notNull()
+			.default(false),
 		...timestamps,
 	},
 	(t) => [
 		index("address_user_idx").on(t.userId),
-		// At most one primary address per user, enforced by the database.
 		uniqueIndex("address_primary_uq").on(t.userId).where(sql`${t.isPrimary}`),
 	],
 );

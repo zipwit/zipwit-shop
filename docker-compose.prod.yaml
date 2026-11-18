@@ -5,14 +5,11 @@ x-app-env: &app-env
     - .env.production
   environment:
     NODE_ENV: production
-    DB_HOST: db
-    DB_PORT: "5432"
-    DB_SSL: "true"
-    DB_SSL_SERVERNAME: ${DB_SSL_SERVERNAME:?DB_SSL_SERVERNAME is required}
+    SQLITE_PATH: /var/lib/zipwit/zipwit.sqlite
     REDIS_CLUSTER_NODES: redis://redis-1:6379,redis://redis-2:6379,redis://redis-3:6379
 
 x-redis-node: &redis-node
-  image: redis:8.10.2-alpine
+  image: redis:8.10.3-alpine
   restart: unless-stopped
   configs:
     - source: redis-cluster-config
@@ -37,44 +34,6 @@ x-hardened: &hardened
     - ALL
 
 services:
-  db:
-    image: postgres:18.6-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:?DB_USER is required}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
-      POSTGRES_DB: ${DB_NAME:?DB_NAME is required}
-    command:
-      - postgres
-      - -c
-      - ssl=on
-      - -c
-      - ssl_cert_file=/etc/postgresql/certs/fullchain.pem
-      - -c
-      - ssl_key_file=/etc/postgresql/certs/privkey.pem
-    volumes:
-      - pgdata:/var/lib/postgresql
-      - type: bind
-        source: ./certs/fullchain.pem
-        target: /etc/postgresql/certs/fullchain.pem
-        read_only: true
-        bind:
-          create_host_path: false
-          selinux: z
-      - type: bind
-        source: ./certs/privkey.pem
-        target: /etc/postgresql/certs/privkey.pem
-        read_only: true
-        bind:
-          create_host_path: false
-          selinux: z
-    healthcheck:
-      test:
-        ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   redis-1:
     <<: *redis-node
     command:
@@ -112,7 +71,7 @@ services:
       - redis3data:/data
 
   redis-cluster-init:
-    image: redis:8.10.2-alpine
+    image: redis:8.10.3-alpine
     entrypoint: ["sh", "/redis-cluster-init.sh"]
     configs:
       - source: redis-cluster-init-script
@@ -131,10 +90,9 @@ services:
       context: .
       target: migrate
     <<: [*app-env, *hardened]
-    depends_on:
-      db:
-        condition: service_healthy
     restart: "no"
+    volumes:
+      - sqlite-data:/var/lib/zipwit
 
   app:
     build:
@@ -157,6 +115,8 @@ services:
       timeout: 3s
       retries: 5
       start_period: 15s
+    volumes:
+      - sqlite-data:/var/lib/zipwit
 
   checkout-notifications:
     build:
@@ -176,6 +136,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    volumes:
+      - sqlite-data:/var/lib/zipwit
 
   web:
     build:
@@ -206,7 +168,7 @@ services:
         condition: service_healthy
 
 volumes:
-  pgdata:
+  sqlite-data:
   redis1data:
   redis2data:
   redis3data:

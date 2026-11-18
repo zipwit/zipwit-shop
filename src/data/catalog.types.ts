@@ -1,4 +1,4 @@
-/** One product in a listing, priced at its cheapest in-stock SKU. */
+/** One product in a listing, priced at the offer shown on its card. */
 export type ProductListItem = {
 	id: string;
 	storeId: string;
@@ -9,6 +9,7 @@ export type ProductListItem = {
 	price: number;
 	originalPrice: number | null;
 	imageUrl: string | null;
+	skuId?: string;
 };
 
 /** A listing item that is on sale, shown at its deepest-discounted SKU. */
@@ -18,7 +19,7 @@ export type Deal = ProductListItem & {
 	discount: number;
 };
 
-/** A search hit: a listing item that also carries its product's best discount. */
+/** A search hit with the discount used for listing order. */
 export type CatalogItem = ProductListItem & { discount: number };
 
 /** Narrows a hit to a real deal (the deals scope only ever returns these). */

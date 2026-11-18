@@ -22,19 +22,21 @@ export const catalogQuery = (scope: CatalogScope, filters: CatalogFilters) =>
 		initialPageParam: 1,
 		getNextPageParam: nextPageParam,
 		staleTime: 60_000,
+		placeholderData: keepPreviousData,
+		retry: false,
 	});
 
 export const catalogFacetsQuery = (
 	scope: CatalogScope,
-	filters: CatalogFilters,
+	{ sort: _sort, ...filters }: CatalogFilters,
 ) =>
 	queryOptions({
 		queryKey: ["catalog-facets", scope, filters],
 		queryFn: ({ signal }) =>
 			catalogFacetsFn({ data: { scope, filters }, signal }),
 		staleTime: 60_000,
-		// Keep the bar on screen while the next counts arrive.
 		placeholderData: keepPreviousData,
+		retry: false,
 	});
 
 /** The home page's drops row: the biggest discounts, no filters. */
@@ -54,14 +56,17 @@ export const homeDealsQuery = queryOptions({
 	staleTime: 60_000,
 });
 
-/** For route loaders: have both the first page and the facets cached before the page renders. */
-export const loadCatalog = async (
+/** Starts loading results and facets. Server rendering waits for the first results page. */
+export const loadCatalog = (
 	queryClient: QueryClient,
 	scope: CatalogScope,
 	filters: CatalogFilters,
 ) => {
-	await Promise.all([
-		queryClient.infiniteQuery(catalogQuery(scope, filters)),
-		queryClient.query(catalogFacetsQuery(scope, filters)),
-	]);
+	const results = queryClient
+		.infiniteQuery(catalogQuery(scope, filters))
+		.catch(() => undefined);
+	void queryClient
+		.query(catalogFacetsQuery(scope, filters))
+		.catch(() => undefined);
+	if (import.meta.env.SSR) return results.then(() => undefined);
 };

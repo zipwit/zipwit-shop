@@ -13,28 +13,28 @@ export type SelectableSku = {
 type SkuChoice = { color?: string; sku?: string };
 
 /**
- * Derives everything the product page renders from the SKU list and the
- * (URL-backed) choice. Invalid or stale choices silently fall back to a sane
- * default, so a hand-edited link can never produce a broken page.
+ * Derives the product view from the SKU list and URL selection.
+ * Without a valid selected SKU, the view shows the cheapest available SKU in
+ * the chosen color, falling back to its first SKU when none are in stock.
  */
-export function resolveSelection<T extends SelectableSku>(
+export function resolveSkuSelection<T extends SelectableSku>(
 	skus: readonly T[],
 	choice: SkuChoice,
 ) {
-	const colors = uniq(skus.map((s) => s.color));
+	const colors = uniq(skus.map((sku) => sku.color));
+	const requested = skus.find((sku) => sku.id === choice.sku && sku.inStock);
 	const color = colors.includes(choice.color ?? "")
 		? choice.color
-		: (skus.find((s) => s.inStock)?.color ?? colors[0]);
+		: (requested?.color ?? skus.find((sku) => sku.inStock)?.color ?? colors[0]);
 
-	const colorSkus = skus.filter((s) => s.color === color);
-	const selected = colorSkus.find((s) => s.id === choice.sku && s.inStock);
+	const colorSkus = skus.filter((sku) => sku.color === color);
+	const selectedSku = requested?.color === color ? requested : undefined;
 
-	// Before a size is picked, advertise the cheapest available option.
-	const shown =
-		selected ??
+	const displaySku =
+		selectedSku ??
 		minBy(
-			colorSkus.filter((s) => s.inStock),
-			(s) => s.price,
+			colorSkus.filter((sku) => sku.inStock),
+			(sku) => sku.price,
 		) ??
 		colorSkus[0];
 
@@ -42,12 +42,15 @@ export function resolveSelection<T extends SelectableSku>(
 		colors,
 		color,
 		colorSkus,
-		selected,
-		shown,
-		imageUrl: colorSkus.find((s) => s.imageUrl)?.imageUrl ?? null,
+		selectedSku,
+		displaySku,
+		imageUrl:
+			selectedSku?.imageUrl ??
+			colorSkus.find((sku) => sku.imageUrl)?.imageUrl ??
+			null,
 	};
 }
 
 export type SkuSelection<T extends SelectableSku> = ReturnType<
-	typeof resolveSelection<T>
+	typeof resolveSkuSelection<T>
 >;

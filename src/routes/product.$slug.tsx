@@ -4,7 +4,7 @@ import { site } from "#/data/site";
 import { ProductDetails } from "#/features/catalog/components/product-details";
 import { getProductFn } from "#/features/catalog/product.functions";
 import { productSlugSchema } from "#/features/catalog/product.schema";
-import { resolveSelection } from "#/features/catalog/product-selection";
+import { resolveSkuSelection } from "#/features/catalog/product-selection";
 import { parseParam } from "#/lib/route-guards";
 
 /**
@@ -27,7 +27,6 @@ export const Route = createFileRoute("/product/$slug")({
 		if (!product) throw notFound();
 		return product;
 	},
-	// Picking a variant only changes the search string; don't refetch for it.
 	staleTime: 30_000,
 	head: ({ loaderData }) => ({
 		meta: [
@@ -52,7 +51,7 @@ function ProductPage() {
 	return (
 		<ProductDetails
 			product={product}
-			selection={resolveSelection(product.skus, search)}
+			selection={resolveSkuSelection(product.skus, search)}
 			onColorChange={(color) =>
 				navigate({ search: { color }, replace: true, resetScroll: false })
 			}

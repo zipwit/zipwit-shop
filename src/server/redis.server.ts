@@ -1,6 +1,11 @@
 import { createClient, createCluster } from "redis";
 import { env } from "./env.server";
 
+/**
+ * Sets separate deadlines for queued commands and silent connections.
+ * Heartbeats keep healthy idle sockets open. Cluster reads use primaries
+ * for read-after-write consistency.
+ */
 const createRedisClient = () => {
 	const defaults = {
 		RESP: 2,
@@ -13,7 +18,6 @@ const createRedisClient = () => {
 				? { tls: true as const }
 				: {}),
 			connectTimeout: 1_000,
-			// Detect silent sockets, including commands already written to them.
 			socketTimeout: 10_000,
 			reconnectStrategy: (retries: number) =>
 				retries >= 5
@@ -21,9 +25,7 @@ const createRedisClient = () => {
 					: Math.min(100 * 2 ** retries, 2_000) +
 						Math.floor(Math.random() * 200),
 		},
-		// Heartbeats keep healthy idle sockets below socketTimeout.
 		pingInterval: 5_000,
-		// This deadline applies only while a command is waiting to be sent.
 		commandOptions: { timeout: 1_000 },
 		disableOfflineQueue: true,
 		commandsQueueMaxLength: 1_000,
@@ -33,7 +35,6 @@ const createRedisClient = () => {
 				RESP: 2,
 				rootNodes: env.REDIS_CLUSTER_NODES.map((url) => ({ url })),
 				defaults,
-				// Prices, stock, carts and sessions must read the primary after a write.
 				useReplicas: false,
 				commandOptions: { timeout: 1_000 },
 			})
@@ -49,7 +50,7 @@ const createRedisClient = () => {
 
 let client: Promise<ReturnType<typeof createRedisClient>> | undefined;
 
-/** Shared lazy Redis connection; failed initialization is retried on the next call. */
+/** Opens a shared lazy connection and clears it after a failed connection or terminal disconnect. */
 export const getRedis = () => {
 	if (client) return client;
 
@@ -58,7 +59,6 @@ export const getRedis = () => {
 		connection.on("error", (error) =>
 			console.warn("Redis client error:", error),
 		);
-		// A terminal disconnect must not leave a closed client cached forever.
 		const reset = () => {
 			if (client === pending) client = undefined;
 		};

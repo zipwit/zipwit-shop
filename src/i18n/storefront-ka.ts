@@ -270,6 +270,12 @@ export const storefrontKa = {
 		"გვერდის მისამართი შესაძლოა შეიცვალა ან ის აღარ არის ხელმისაწვდომი.",
 	"Keep shopping": "შერჩევის გაგრძელება",
 	"Loading…": "იტვირთება…",
+	"Loading filters…": "ფილტრები იტვირთება…",
+	"Couldn't load filters.": "ფილტრების ჩატვირთვა ვერ მოხერხდა.",
+	"Loading results…": "შედეგები იტვირთება…",
+	"Couldn't load results.": "შედეგების ჩატვირთვა ვერ მოხერხდა.",
+	"Minimum price": "მინიმალური ფასი",
+	"Maximum price": "მაქსიმალური ფასი",
 	"Loading more…": "დამატებითი შედეგები იტვირთება…",
 	"Couldn't load more. Try again":
 		"დამატებითი შედეგები ვერ ჩაიტვირთა. სცადეთ ხელახლა",
@@ -313,7 +319,6 @@ export const storefrontKa = {
 	"Size {{size}}": "ზომა {{size}}",
 	"Size {{size}}, sold out": "ზომა {{size}}, მარაგში აღარ არის",
 	"In stock and ready to order.": "მარაგშია. შეგიძლიათ შეუკვეთოთ.",
-	"This size is currently sold out.": "ეს ზომა ამჟამად მარაგში არ არის.",
 	"Select a size to check availability.": "მარაგის შესამოწმებლად აირჩიეთ ზომა.",
 	"This product is currently unavailable.":
 		"ეს ნივთი ამჟამად გაყიდვაში არ არის.",

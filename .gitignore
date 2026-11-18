@@ -20,3 +20,6 @@ dist
 # test coverage
 coverage
 certs/
+
+*.sqlite
+*.sqlite-*

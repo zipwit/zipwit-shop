@@ -13,7 +13,6 @@ type Social = {
 };
 
 export const socials: Social[] = [
-	// Replace platform homepages with the shop's profile URLs when available.
 	{
 		label: "Facebook",
 		href: "https://www.facebook.com/",

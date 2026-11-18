@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.6.8/schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -140,9 +140,9 @@
 											"#/db/**",
 											"drizzle-orm",
 											"drizzle-orm/**",
-											"pg"
+											"node:sqlite"
 										],
-										"message": "Redis owns the live catalog; PostgreSQL belongs to accounts and transactions."
+										"message": "Redis owns the live catalog; SQLite belongs to accounts and transactions."
 									},
 									{
 										"group": [

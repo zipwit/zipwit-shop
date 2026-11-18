@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { db } from "#/db";
 import { checkoutSession, orderNotification, orders } from "#/db/schema";
 import { sendEmail } from "#/features/auth/email.server";
@@ -45,38 +45,97 @@ async function alertOps(orderId: string, attempts: number) {
 	}
 }
 
-/** Durable at-least-once delivery; progress is saved after each accepted message. */
-export async function deliverOrderNotification(orderId?: string) {
-	if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return false;
-	const job = await db.transaction(async (tx) => {
-		const now = new Date();
-		const [pending] = await tx
-			.select()
-			.from(orderNotification)
-			.where(
-				and(
-					isNull(orderNotification.sentAt),
-					lt(orderNotification.nextAttemptAt, now),
-					or(
-						isNull(orderNotification.leaseUntil),
-						lt(orderNotification.leaseUntil, now),
+function claimNotification(orderId?: string) {
+	return db.transaction(
+		(tx) => {
+			const now = new Date();
+			const pending = tx
+				.select()
+				.from(orderNotification)
+				.where(
+					and(
+						isNull(orderNotification.sentAt),
+						lt(orderNotification.nextAttemptAt, now),
+						or(
+							isNull(orderNotification.leaseUntil),
+							lt(orderNotification.leaseUntil, now),
+						),
+						orderId ? eq(orderNotification.orderId, orderId) : undefined,
 					),
-					orderId ? eq(orderNotification.orderId, orderId) : undefined,
-				),
-			)
-			.orderBy(orderNotification.nextAttemptAt)
-			.limit(1)
-			.for("update", { skipLocked: true });
-		if (!pending) return null;
-		await tx
+				)
+				.orderBy(orderNotification.nextAttemptAt)
+				.limit(1)
+				.get();
+			if (!pending) return null;
+			tx.update(orderNotification)
+				.set({
+					leaseUntil: new Date(Date.now() + 10 * 60_000),
+					attempts: pending.attempts + 1,
+				})
+				.where(eq(orderNotification.orderId, pending.orderId))
+				.run();
+			return pending;
+		},
+		{ behavior: "immediate" },
+	);
+}
+
+async function sendOrderMessages(
+	orderId: string,
+	chatId: string,
+	messages: string[],
+	nextMessage: number,
+) {
+	for (let i = nextMessage; i < messages.length; i++) {
+		await telegram("sendMessage", {
+			chat_id: chatId,
+			text: messages[i],
+			parse_mode: "HTML",
+			link_preview_options: { is_disabled: true },
+		});
+		await db
 			.update(orderNotification)
-			.set({
-				leaseUntil: new Date(Date.now() + 10 * 60_000),
-				attempts: pending.attempts + 1,
-			})
-			.where(eq(orderNotification.orderId, pending.orderId));
-		return pending;
-	});
+			.set({ nextMessage: i + 1 })
+			.where(eq(orderNotification.orderId, orderId));
+	}
+}
+
+async function sendPaymentProof(
+	orderId: string,
+	chatId: string,
+	proofBase64: string,
+	proofType: string,
+) {
+	const file = new FormData();
+	file.set("chat_id", chatId);
+	file.set(
+		"caption",
+		`Payment proof — order ${orderId}\nAwaiting bank verification`,
+	);
+	const extension =
+		proofType === "image/png"
+			? "png"
+			: proofType === "image/jpeg"
+				? "jpg"
+				: "webp";
+	file.set(
+		"document",
+		new Blob([Buffer.from(proofBase64, "base64")], {
+			type: proofType,
+		}),
+		`payment-${orderId}.${extension}`,
+	);
+	await telegram("sendDocument", file);
+}
+
+/**
+ * Delivers notifications at least once and saves progress after each accepted message.
+ * Failure logs omit request errors because a Telegram URL can contain the bot token.
+ */
+export async function deliverOrderNotification(orderId?: string) {
+	const chatId = env.TELEGRAM_CHAT_ID;
+	if (!env.TELEGRAM_BOT_TOKEN || !chatId) return false;
+	const job = claimNotification(orderId);
 	if (!job) return false;
 	try {
 		const [order] = await db
@@ -97,39 +156,14 @@ export async function deliverOrderNotification(orderId?: string) {
 			quote: order.checkoutQuote,
 			address: draft.shippingAddress,
 		});
-		for (let i = job.nextMessage; i < messages.length; i++) {
-			await telegram("sendMessage", {
-				chat_id: env.TELEGRAM_CHAT_ID,
-				text: messages[i],
-				parse_mode: "HTML",
-				link_preview_options: { is_disabled: true },
-			});
-			await db
-				.update(orderNotification)
-				.set({ nextMessage: i + 1 })
-				.where(eq(orderNotification.orderId, job.orderId));
-		}
+		await sendOrderMessages(job.orderId, chatId, messages, job.nextMessage);
 		if (!job.proofSent) {
-			const file = new FormData();
-			file.set("chat_id", env.TELEGRAM_CHAT_ID);
-			file.set(
-				"caption",
-				`Payment proof — order ${order.id}\nAwaiting bank verification`,
+			await sendPaymentProof(
+				job.orderId,
+				chatId,
+				draft.proofBase64,
+				draft.proofType,
 			);
-			const extension =
-				draft.proofType === "image/png"
-					? "png"
-					: draft.proofType === "image/jpeg"
-						? "jpg"
-						: "webp";
-			file.set(
-				"document",
-				new Blob([Buffer.from(draft.proofBase64, "base64")], {
-					type: draft.proofType,
-				}),
-				`payment-${order.id}.${extension}`,
-			);
-			await telegram("sendDocument", file);
 			await db
 				.update(orderNotification)
 				.set({ proofSent: true })
@@ -140,7 +174,6 @@ export async function deliverOrderNotification(orderId?: string) {
 			.set({ sentAt: new Date(), leaseUntil: null })
 			.where(eq(orderNotification.orderId, job.orderId));
 	} catch {
-		// Do not log fetch errors: they can contain the bot token in the request URL.
 		console.error("Telegram notification will be retried", {
 			orderId: job.orderId,
 		});
@@ -159,15 +192,18 @@ export async function deliverOrderNotification(orderId?: string) {
 	return true;
 }
 
+/** Deletes quotes that expired over 30 days ago and have neither an order nor payment evidence. */
 export async function cleanExpiredDrafts() {
-	// Never discard a submitted order or payment evidence.
 	await db
 		.delete(checkoutSession)
 		.where(
 			and(
 				isNull(checkoutSession.submittedAt),
 				isNull(checkoutSession.proofBase64),
-				lt(checkoutSession.expiresAt, sql`now() - interval '30 days'`),
+				lt(
+					checkoutSession.expiresAt,
+					new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+				),
 			),
 		);
 }

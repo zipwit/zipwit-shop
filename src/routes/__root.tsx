@@ -71,7 +71,7 @@ function RootLayout() {
 	);
 }
 
-// Keep the document independent of loader data so root errors can render.
+/** Renders the document shell even when the root loader fails. */
 function RootDocument({ children }: { children: ReactNode }) {
 	const { locale } = Route.useRouteContext();
 	return (

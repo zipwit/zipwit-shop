@@ -1,23 +1,23 @@
 import { defineRelationsPart } from "drizzle-orm";
-import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-export const user = pgTable("user", {
-	id: text("id").primaryKey(),
+import { timestamp, timestamps } from "./columns";
+
+export const user = sqliteTable("user", {
+	id: text("id").notNull().primaryKey(),
 	name: text("name").notNull(),
 	email: text("email").notNull().unique(),
-	emailVerified: boolean("email_verified").default(false).notNull(),
-	image: text("image"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.$onUpdate(() => /* @__PURE__ */ new Date())
+	emailVerified: integer("email_verified", { mode: "boolean" })
+		.default(false)
 		.notNull(),
+	image: text("image"),
+	...timestamps,
 });
 
-export const account = pgTable(
+export const account = sqliteTable(
 	"account",
 	{
-		id: text("id").primaryKey(),
+		id: text("id").notNull().primaryKey(),
 		accountId: text("account_id").notNull(),
 		providerId: text("provider_id").notNull(),
 		userId: text("user_id")
@@ -30,10 +30,7 @@ export const account = pgTable(
 		refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
 		scope: text("scope"),
 		password: text("password"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at")
-			.$onUpdate(() => /* @__PURE__ */ new Date())
-			.notNull(),
+		...timestamps,
 	},
 	(table) => [index("account_userId_idx").on(table.userId)],
 );

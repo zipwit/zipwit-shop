@@ -1,16 +1,12 @@
 import { getAuthLinkURL } from "@better-auth-ui/core";
 import { useAuth } from "@better-auth-ui/react";
 import { FieldDescription } from "#/components/ui/field";
+import { useAuthReturnTo } from "#/features/auth/auth-return-to";
 
 export function AuthFormLinks({ view }: { view: "signIn" | "signUp" }) {
-	const {
-		basePaths,
-		emailAndPassword,
-		localization,
-		redirectTo,
-		viewPaths,
-		Link,
-	} = useAuth();
+	const { basePaths, emailAndPassword, localization, viewPaths, Link } =
+		useAuth();
+	const redirectTo = useAuthReturnTo();
 	if (!emailAndPassword?.enabled) return null;
 	const signingIn = view === "signIn";
 	const target = signingIn ? viewPaths.auth.signUp : viewPaths.auth.signIn;
@@ -18,7 +14,10 @@ export function AuthFormLinks({ view }: { view: "signIn" | "signUp" }) {
 		<div className="mt-4 flex w-full flex-col items-center gap-3">
 			{signingIn && emailAndPassword.forgotPassword && (
 				<Link
-					href={`${basePaths.auth}/${viewPaths.auth.forgotPassword}`}
+					href={getAuthLinkURL(
+						`${basePaths.auth}/${viewPaths.auth.forgotPassword}`,
+						redirectTo,
+					)}
 					className="text-sm underline-offset-4 hover:underline"
 				>
 					{localization.auth.forgotPasswordLink}

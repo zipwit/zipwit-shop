@@ -49,10 +49,10 @@ const AUTH_VIEWS: Partial<Record<AuthView, ComponentType<AuthProps>>> = {
 /**
  * Render the appropriate authentication view based on the provided `view` or `path`.
  *
- * Resolution order:
- *   1. Plugin overrides (`plugin.views.auth[currentView]`) — first registered wins.
- *   2. Plugin fallbacks (`plugin.fallbackViews.auth.signIn`) when password auth is off.
- *   3. Built-in views.
+ * Resolves the view from the explicit view, a built-in path, or a plugin path.
+ * The first matching plugin override takes precedence over the built-in view.
+ * With password auth disabled, password-only views redirect to sign-in, where
+ * a plugin can supply the fallback form.
  *
  * @param path - Route path used to resolve an auth view when `view` is not provided
  * @param socialLayout - Social layout to apply to sign-in/sign-up/magic-link views
@@ -82,10 +82,6 @@ export function Auth({
 			(key) => viewPaths.auth[key] === path,
 		);
 
-	// When email + password auth is disabled, password-only views (signUp,
-	// forgotPassword, resetPassword) have no meaning. Redirect them to signIn,
-	// where a plugin's `fallbackViews.auth.signIn` (e.g. magic link) takes
-	// over as the primary entry point.
 	const shouldRedirectToSignIn =
 		!emailAndPassword?.enabled &&
 		authView &&
@@ -104,10 +100,6 @@ export function Auth({
 		return null;
 	}
 
-	// 1. Plugin overrides (`views.auth[currentView]`) — first plugin wins,
-	//    including over built-in views. Resolves the view key from `view`,
-	//    then `authView` (built-in path match), then plugin-introduced paths
-	//    (e.g. `magicLink` → `/auth/magic-link`).
 	for (const plugin of plugins) {
 		const pluginAuthPaths = plugin.viewPaths?.auth;
 
@@ -132,9 +124,6 @@ export function Auth({
 		);
 	}
 
-	// 2. Plugin fallbacks — only when the built-in `signIn` isn't viable
-	//    (password auth is off). Used by `magicLinkPlugin` to render the
-	//    magic-link form as the primary passwordless sign-in surface.
 	if (authView === "signIn" && !emailAndPassword?.enabled) {
 		const Fallback = plugins.find(
 			(plugin) => plugin.fallbackViews?.auth?.signIn,

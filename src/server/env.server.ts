@@ -8,6 +8,37 @@ const optionalString = z
 
 const optionalUrl = optionalString.pipe(z.url().optional());
 
+function isRedisSeedUrl(value: string) {
+	const url = URL.parse(value);
+	return (
+		url !== null &&
+		(url.protocol === "redis:" || url.protocol === "rediss:") &&
+		Boolean(url.hostname) &&
+		["", "/", "/0"].includes(url.pathname) &&
+		!url.search &&
+		!url.hash &&
+		!url.username &&
+		!url.password
+	);
+}
+
+const redisClusterNodes = optionalString.pipe(
+	z
+		.string()
+		.transform((value) => value.split(",").map((seed) => seed.trim()))
+		.pipe(
+			z.array(
+				z
+					.string()
+					.refine(
+						isRedisSeedUrl,
+						"Use redis:// or rediss:// URLs with database 0; set credentials in REDIS_USERNAME and REDIS_PASSWORD.",
+					),
+			),
+		)
+		.optional(),
+);
+
 const envSchema = z
 	.object({
 		NODE_ENV: z.string().optional(),
@@ -15,29 +46,7 @@ const envSchema = z
 		REDIS_HOST: z.string().min(1).default("localhost"),
 		REDIS_PORT: z.coerce.number().int().min(1).max(65535).default(6379),
 		/** Comma-separated seed URLs. Unset keeps standalone Redis available for local tools. */
-		REDIS_CLUSTER_NODES: optionalString.pipe(
-			z
-				.string()
-				.transform((value) => value.split(",").map((url) => url.trim()))
-				.pipe(
-					z
-						.array(
-							z.url().refine((value) => {
-								const url = new URL(value);
-								return (
-									["redis:", "rediss:"].includes(url.protocol) &&
-									["", "/", "/0"].includes(url.pathname) &&
-									!url.search &&
-									!url.hash &&
-									!url.username &&
-									!url.password
-								);
-							}, "Use redis:// or rediss:// URLs with database 0; set credentials in REDIS_USERNAME and REDIS_PASSWORD."),
-						)
-						.min(1),
-				)
-				.optional(),
-		),
+		REDIS_CLUSTER_NODES: redisClusterNodes,
 		REDIS_USERNAME: optionalString,
 		REDIS_PASSWORD: optionalString,
 		REDIS_TLS: z
@@ -48,13 +57,11 @@ const envSchema = z
 		BETTER_AUTH_URL: z.url().default("http://localhost:3000"),
 		BETTER_AUTH_SECRET: z.string().min(32),
 
-		// Social sign-in is optional: a provider is enabled when both values are set.
 		GOOGLE_CLIENT_ID: optionalString,
 		GOOGLE_CLIENT_SECRET: optionalString,
 		FACEBOOK_CLIENT_ID: optionalString,
 		FACEBOOK_CLIENT_SECRET: optionalString,
 
-		// Without a key, emails are logged instead of sent (required in production).
 		RESEND_API_KEY: optionalString,
 		EMAIL_FROM: z
 			.string()
@@ -64,7 +71,6 @@ const envSchema = z
 		/** Public origin used in the sitemap. Falls back to `BETTER_AUTH_URL`. */
 		SITE_URL: optionalUrl,
 
-		// Checkout stays unavailable until these are valid and NBG's exchange rate can be fetched.
 		CHECKOUT_IBAN: optionalString,
 		CHECKOUT_SERVICE_FEE_BPS: optionalString,
 		WAREHOUSE_SHIPPING_RULES: optionalString,

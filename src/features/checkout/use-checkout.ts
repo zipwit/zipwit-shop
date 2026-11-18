@@ -1,14 +1,14 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
 import { cartQuery } from "#/features/cart/cart.queries";
-import type { CheckoutView } from "./checkout";
 import {
 	prepareCheckoutFn,
 	submitCheckoutFn,
 	uploadProofFn,
 } from "./checkout.functions";
+import { checkoutQuery } from "./checkout.queries";
 
 type CheckoutAction =
 	| { kind: "prepare"; id: string; addressId: string }
@@ -16,11 +16,12 @@ type CheckoutAction =
 	| { kind: "submit"; id: string };
 
 /** Keep one request ID across retries so a lost response cannot create a second order. */
-export function useCheckout(initialCheckout: CheckoutView | null) {
-	const [checkout, setCheckout] = useState(initialCheckout);
-	const [step, setStep] = useState(
-		initialCheckout?.proofUploaded ? 3 : initialCheckout ? 2 : 1,
+export function useCheckout(userId: string, id: string | undefined) {
+	const { data: checkout, error: checkoutError } = useQuery(
+		checkoutQuery(userId, id),
 	);
+	const [chosenStep, setStep] = useState<2 | 3>();
+	const step = checkout ? (chosenStep ?? (checkout.proofUploaded ? 3 : 2)) : 1;
 	const request = useRef<{ addressId: string; id: string } | null>(null);
 	const navigate = useNavigate({ from: "/checkout" });
 	const queryClient = useQueryClient();
@@ -51,9 +52,10 @@ export function useCheckout(initialCheckout: CheckoutView | null) {
 				await queryClient.invalidateQueries({ queryKey: cartQuery.queryKey });
 		},
 		onSuccess: async (next, action) => {
-			setCheckout(next);
+			const { queryKey } = checkoutQuery(userId, next.id);
+			await queryClient.cancelQueries({ queryKey, exact: true });
+			queryClient.setQueryData(queryKey, next);
 			if (action.kind === "prepare") {
-				setStep(next.proofUploaded ? 3 : 2);
 				await navigate({ search: { checkout: next.id }, replace: true });
 			}
 			if (action.kind === "submit")
@@ -66,7 +68,7 @@ export function useCheckout(initialCheckout: CheckoutView | null) {
 		step,
 		setStep,
 		busy: mutation.isPending ? mutation.variables.kind : null,
-		error: mutation.error?.message,
+		error: mutation.error?.message ?? checkoutError?.message,
 		uploadFailed: mutation.isError && mutation.variables?.kind === "upload",
 		prepare(addressId: string) {
 			if (mutation.isPending) return;

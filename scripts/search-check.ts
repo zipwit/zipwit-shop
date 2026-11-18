@@ -38,7 +38,15 @@ const sku = (
 	price: number,
 	originalPrice: number | null = null,
 	discount = 0,
-) => ({ color, size, price, originalPrice, discount, imageUrl: null });
+) => ({
+	id: `${color}-${size}`,
+	color,
+	size,
+	price,
+	originalPrice,
+	discount,
+	imageUrl: null,
+});
 
 const fixture: SourceProduct[] = [
 	{
@@ -146,7 +154,7 @@ const checks: Check[] = [
 	},
 	{
 		name: "Search and JSON modules are loaded",
-		hint: "Use the redis:8.10.2-alpine image. If you keep a `command:` override in docker-compose.dev.yaml or docker-compose.prod.yaml, it may be skipping the module flags the image normally passes.",
+		hint: "Use the redis:8.10.3-alpine image. If you keep a `command:` override in docker-compose.dev.yaml or docker-compose.prod.yaml, it may be skipping the module flags the image normally passes.",
 		test: async () => {
 			const list = JSON.stringify(await redisCommand(["MODULE", "LIST"]));
 			if (!/search/i.test(list)) throw new Error("no search module");
@@ -159,6 +167,30 @@ const checks: Check[] = [
 		test: async () => {
 			const { total } = await search({ limit: 0 });
 			same(total, fixture.length);
+		},
+	},
+	{
+		name: "Relevance paging preserves the complete ranked order",
+		hint: "Check that the Search module supports scored aggregation and loading JSON documents.",
+		test: async () => {
+			const all = await ft.searchByRelevance<CatalogDoc>(INDEX, "*", {
+				offset: 0,
+				limit: fixture.length,
+			});
+			const first = await ft.searchByRelevance<CatalogDoc>(INDEX, "*", {
+				offset: 0,
+				limit: 2,
+			});
+			const second = await ft.searchByRelevance<CatalogDoc>(INDEX, "*", {
+				offset: 2,
+				limit: 2,
+			});
+			const rankedIds = all.docs.map(({ id }) => id);
+			same(rankedIds.toSorted(), ["a", "b", "c"]);
+			same(
+				[...first.docs, ...second.docs].map(({ id }) => id),
+				rankedIds,
+			);
 		},
 	},
 	{
@@ -284,15 +316,13 @@ const checks: Check[] = [
 	},
 ];
 
-/** Indexing is asynchronous, so wait for the fixture to appear before any check runs. */
+/** Waits for asynchronous indexing. The checks report any search errors that persist. */
 async function waitForIndexing() {
 	const deadline = Date.now() + 5_000;
 	while (Date.now() < deadline) {
 		try {
 			if ((await search({ limit: 0 })).total === fixture.length) return;
-		} catch {
-			// The check itself reports a query that never works.
-		}
+		} catch {}
 		await new Promise((resolve) => setTimeout(resolve, 100));
 	}
 }

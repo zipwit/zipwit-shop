@@ -1,4 +1,5 @@
 import { writeFile } from "node:fs/promises";
+import { processCartCleanup } from "../src/features/checkout/cart-cleanup.server";
 import {
 	cleanExpiredDrafts,
 	deliverOrderNotification,
@@ -23,8 +24,9 @@ while (!stopping) {
 			await cleanExpiredDrafts();
 			lastCleanup = Date.now();
 		}
-		const processed = await deliverOrderNotification();
-		if (processed) continue;
+		const cartProcessed = await processCartCleanup();
+		const notificationProcessed = await deliverOrderNotification();
+		if (cartProcessed || notificationProcessed) continue;
 	} catch (error) {
 		console.error("Order notification worker failed; retrying", {
 			name: error instanceof Error ? error.name : typeof error,

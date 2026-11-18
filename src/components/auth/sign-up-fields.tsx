@@ -4,7 +4,7 @@ import {
 } from "@better-auth-ui/core";
 import { useAuth } from "@better-auth-ui/react";
 import { getAuthAdditionalFieldValidators } from "./auth-form";
-import { PasswordStrengthMeter } from "./password-strength-meter";
+import { ConfirmPasswordField, NewPasswordField } from "./new-password-field";
 import type { useSignUpForm } from "./use-sign-up-form";
 
 type SignUpState = ReturnType<typeof useSignUpForm>;
@@ -71,21 +71,14 @@ export function SignUpFields({ state }: { state: SignUpState }) {
 					onChange: ({ value }) => validatePassword(value),
 				}}
 			>
-				{(field) => (
-					<field.FormTextField
+				{() => (
+					<NewPasswordField
 						label={localization.auth.password}
-						type="password"
-						autoComplete="new-password"
 						placeholder={localization.auth.passwordPlaceholder}
-						required
 						disabled={isPending}
-						minLength={emailAndPassword?.minPasswordLength}
-						maxLength={emailAndPassword?.maxPasswordLength}
-						error={isCompromised && localization.auth.passwordCompromised}
-						onValueChange={() => setIsCompromised(false)}
-					>
-						<PasswordStrengthMeter password={field.state.value} />
-					</field.FormTextField>
+						isCompromised={isCompromised}
+						onEdit={() => setIsCompromised(false)}
+					/>
 				)}
 			</form.AppField>
 			{emailAndPassword?.confirmPassword && (
@@ -100,18 +93,7 @@ export function SignUpFields({ state }: { state: SignUpState }) {
 							),
 					}}
 				>
-					{(field) => (
-						<field.FormTextField
-							label={localization.auth.confirmPassword}
-							type="password"
-							autoComplete="new-password"
-							placeholder={localization.auth.confirmPasswordPlaceholder}
-							required
-							disabled={isPending}
-							minLength={emailAndPassword?.minPasswordLength}
-							maxLength={emailAndPassword?.maxPasswordLength}
-						/>
-					)}
+					{() => <ConfirmPasswordField disabled={isPending} />}
 				</form.AppField>
 			)}
 			<SignUpAdditionalFields state={state} above={false} />

@@ -4,7 +4,7 @@ Zipwit’s clothing and footwear storefront. Production domain: **to be configur
 
 A Georgian and English storefront for browsing wholesale clothing and footwear, comparing deals, and saving products to a cart. Includes catalog search and filters, email/password sign-in, email-code verification and password reset, optional social sign-in, and an address book. Georgian is the default language.
 
-**Status:** browsing, accounts, addresses, carts, and bank-transfer checkout are implemented. Checkout supports U.S. delivery, frozen USD/GEL totals, private receipt uploads, and pending orders. Warehouse shipping rates must be configured before new orders can proceed; no default rates are bundled. Payment verification and fulfillment remain manual. See [Checkout setup](docs/checkout.md) and [Known limitations](#known-limitations).
+**Status:** browsing, accounts, addresses, carts, and bank-transfer checkout are implemented. Checkout supports U.S. delivery, frozen USD/GEL totals, private receipt uploads, and pending orders. Warehouse shipping rates must be configured before new orders can proceed; no default rates are bundled. Payment verification and fulfillment remain manual. See [Checkout](#checkout) and [Known limitations](#known-limitations).
 
 ## Contents
 
@@ -25,15 +25,16 @@ A Georgian and English storefront for browsing wholesale clothing and footwear, 
 
 ## Quick start
 
-Requires Docker with the Compose plugin. The dev stack runs the app, PostgreSQL, a three-primary Redis Cluster, Nginx, and the checkout notification worker; host Node.js and pnpm are optional.
-1. Create `.env.development` in the repo root (see [Configuration](#configuration)). Set DB credentials and `BETTER_AUTH_SECRET` (`openssl rand -hex 32`). Env files are git- and Docker-ignored; no complete env template is included. The [checkout guide](docs/checkout.md) documents payment settings and sample development shipping rules.
+Requires Docker with the Compose plugin. The dev stack runs the app with embedded SQLite, a three-primary Redis Cluster, Nginx, and the checkout notification worker; host Node.js and pnpm are optional.
+
+1. Create `.env.development` in the repo root (see [Configuration](#configuration)). Set `BETTER_AUTH_SECRET` (`openssl rand -hex 32`). Env files are git- and Docker-ignored. See [checkout settings](#checkout) and [sample shipping rules](#development-preview-with-seeded-products).
 2. Start the stack. The included initial migration creates the application tables before the app starts:
 
    ```sh
    docker compose --env-file .env.development -f docker-compose.dev.yaml up --build
    ```
 
-3. Open **http://localhost:3000**. Migrations run before the app starts; Nginx proxies requests and hot-reload WebSockets to Vite. Dev uses plain HTTP and no database TLS, so no certificates are needed.
+3. Open **http://localhost:3000**. Migrations run before the app starts; Nginx proxies requests and hot-reload WebSockets to Vite. Dev uses plain HTTP, so no certificates are needed.
 4. Optionally seed the catalog:
 
    ```sh
@@ -41,7 +42,7 @@ Requires Docker with the Compose plugin. The dev stack runs the app, PostgreSQL,
    ```
 
    Seeding creates sample products and SKUs, then tries to refresh the search index and stats. Re-running replaces products under the reserved `.example` warehouse domains. It refuses to run with `NODE_ENV=production`.
-5. To preview shipment costs with seeded products, use the [development shipping rules](docs/checkout.md#development-preview-with-seeded-products). They cover all four fictional stores; checkout still requires the payment settings and a valid exchange rate.
+5. To preview shipment costs, use the [development shipping rules](#development-preview-with-seeded-products). Checkout also requires the payment settings and a valid exchange rate.
 
 Without a Resend key, dev emails and verification codes appear in the app logs:
 
@@ -61,7 +62,7 @@ Exact ranges are in `package.json`; resolved versions in `pnpm-lock.yaml`. Alway
 | App                | React 19, TanStack Start/Router/Query/Form/Store, Zod 4      |
 | UI                 | Tailwind CSS 4, Base UI, copied shadcn components, Hugeicons |
 | Auth               | Better Auth, Better Auth UI                                  |
-| Data               | PostgreSQL 18, Drizzle ORM/Kit 1.0 RC                        |
+| Data               | SQLite via Node’s built-in driver, Drizzle ORM/Kit 1.0 RC    |
 | Live catalog/cache | Redis 8 Cluster with Search and JSON                         |
 | Email              | Resend                                                       |
 | Build/hosting      | Vite 8, Nitro 3 beta, Docker Compose, Nginx                  |
@@ -75,17 +76,17 @@ A full-stack app organized by feature, with a separate checkout notification wor
 Redis Cluster handles live catalog reads and writes: product details, prices, stock,
 search, facets, stats, and sitemap data. Carts and auth secondary storage also use
 the cluster. Reads go to primaries so a write is immediately visible to subsequent
-reads. PostgreSQL keeps users, addresses, checkout drafts, payment evidence, orders,
+reads. SQLite keeps users, addresses, checkout drafts, payment evidence, orders,
 and notification jobs transactional.
 
 The live catalog is owned by Redis. Trusted server code calls
 `putCatalogProduct` and `deleteCatalogProduct` in
 `src/features/catalog/catalog-store.server.ts`; each product and its Search
 summary update atomically on their shard. Timestamp revisions reject older writes.
-Catalog reads and writes do not query PostgreSQL, and an empty Redis catalog stays
+Catalog reads and writes do not query SQLite, and an empty Redis catalog stays
 empty until products are written. There is no upload, review, or approval dashboard.
 
-PostgreSQL has no catalog tables or live SKU foreign keys. `pnpm search:sync`
+SQLite has no catalog tables or live SKU foreign keys. `pnpm search:sync`
 rebuilds derived Search documents from the Redis product records. Redis persistence
 and backups protect the live catalog.
 
@@ -94,11 +95,11 @@ flowchart LR
     Browser --> Nginx
     Nginx --> Assets[Static assets]
     Nginx --> App[TanStack Start / Nitro]
-    App --> PG[(PostgreSQL: accounts / orders / payments)]
+    App --> SQL[(SQLite: accounts / orders / payments)]
     App --> Redis[(Redis Cluster: 3 primaries)]
     App --> Email[Resend]
     App --> Rates[NBG USD rate]
-    Worker[Checkout notification worker] --> PG
+    Worker[Checkout notification worker] --> SQL
     Worker --> Telegram[Telegram]
     Sync[search:sync] --> Redis
 ```
@@ -118,6 +119,8 @@ In dev, Nginx forwards everything to Vite. In production it serves built assets 
 | `src/data/`, `src/i18n/`          | Site config, catalog taxonomy, types, messages.                             |
 
 Route loaders run on both server and client, so they are **not** a server-only boundary. Keep private work behind server functions.
+
+Use JSDoc for contracts and invariants that readers need at the declaration. Put setup, workflows, and architecture in the project documentation. Keep implementation code free of explanatory inline comments.
 
 ### Request lifecycle
 
@@ -152,7 +155,7 @@ Route loaders run on both server and client, so they are **not** a server-only b
 | `/settings/$path`           | Account and security settings, saved addresses.                                   |
 | `/checkout`                 | Resumable bank-transfer checkout and confirmation, not indexed.                   |
 | `/api/auth/*`               | Better Auth handler.                                                              |
-| `/api/health`               | Liveness only; does not check PostgreSQL or Redis.                                |
+| `/api/health`               | Liveness only; does not check SQLite or Redis.                                    |
 | `/sitemap.xml`              | Public pages (including About) and products with available SKUs.                  |
 
 `src/routeTree.gen.ts` is generated by the Vite integration. Don't edit it.
@@ -162,6 +165,7 @@ Route loaders run on both server and client, so they are **not** a server-only b
 ### Homepage
 
 The homepage introduces the store, shows the biggest discounts, links to departments, and explains shopping in three steps: find your fit, compare the details, and review your order. The guide links to About for the store-selection story.
+
 - The hero shows deal and warehouse counts. The deals section owns the last price-check note and the link to all deals; it is hidden when no deals are available.
 - Deal cards scroll horizontally, with three cards across at tablet widths and four on desktop. Previous/next controls disappear when the row fits, and scrolling respects reduced-motion preferences.
 - Department tiles link to each department and its categories. The shopping guide covers shipping, service fees, and the final total.
@@ -169,6 +173,7 @@ The homepage introduces the store, shows the biggest discounts, links to departm
 ### About and footer navigation
 
 `/about` explains the selection process: choose reputable U.S. stores, filter and compare listings, and bring the results together for customers. The page has a violet introduction with a soft violet spotlight, a light process section, and a closing explanation of recorded prices and availability.
+
 - Three selectable steps highlight layers in a CSS 3D illustration; no WebGL or graphics-library dependency. Keyboard-operable buttons select one step at a time. Its title and description appear above the illustration in a live region, with reduced-motion support for the layer transitions.
 - The footer links to **About us** under **Discover** (Georgian: **ჩვენ შესახებ** under **გაგვიცანით**).
 - Page copy and metadata support English and Georgian; `/about` is included in the sitemap.
@@ -179,11 +184,12 @@ The homepage introduces the store, shows the biggest discounts, links to departm
 `src/data/catalog.ts` defines the department/category taxonomy. Products hold identity and descriptions; SKUs hold color, size, image, price, original price, and stock. Money is stored as integer minor units (tetri for GEL, cents for USD) plus a currency code.
 
 Catalog records and in-stock SKU summaries are published as Redis JSON documents. Product details and cart SKU lookups read the complete Redis records; search reads the summaries. Department listings show each product's cheapest SKU; Deals shows the deepest-discounted one. Search supports text, brand, size, color, price range, sale status, and sorting, in pages of up to 48 with automatic and manual load-more.
+
 - The index name includes a hash of its schema and store-identity key fingerprint. First catalog access creates the index and rebuilds derived fields from Redis when the schema changes (memoized per process). This is **not** a scheduled import.
 - Catalog writes update Search directly. Run `pnpm search:sync` after changing derived fields; it removes summaries whose Redis product record is gone.
 - Stats aggregate the live Redis index, so catalog updates and expirations are reflected without a day-long stats cache.
 - Client freshness: 1 min for results/facets, 5 min for stats. Server stats aggregate Redis directly.
-- Search needs Redis Search and JSON and has no PostgreSQL catalog fallback.
+- Search needs Redis Search and JSON and has no SQLite catalog fallback.
 
 ### Cart
 
@@ -192,15 +198,15 @@ Catalog records and in-stock SKU summaries are published as Redis JSON documents
 - Limits: 50 lines, 10 units per SKU, one currency.
 - Client writes share a mutation scope (serialized per client) and refresh after the last queued write.
 - Redis scripts enforce limits and quantity changes atomically across clients. Adds revalidate catalog currency when SKU membership changes, retrying up to eight times before asking the customer to retry.
-- Quantity updates cannot recreate removed lines. Checkout subtracts purchased quantities atomically, preserving concurrent additions. Catalog reads and Redis writes are separate; checkout validates its own quote.
+- Quantity updates cannot recreate removed lines. Checkout records the originating cart and subtracts purchased quantities atomically. The worker retries failed cleanup without subtracting the same order twice. Catalog reads and Redis writes are separate; checkout validates its own quote.
 
 ### Checkout
 
 - Signed-in customers select a U.S. address, review a server-created quote, transfer either the USD or GEL total, and upload a receipt before placing an order.
 - Shipping is calculated per warehouse using explicit flat rates and optional free-shipping thresholds in `WAREHOUSE_SHIPPING_RULES`. Cart and checkout group items into shipments; missing rules prevent payment. Saved quotes retain their original shipping costs.
 - The server owns prices, fees, and the exchange rate. Quotes last 24 hours; retries retain their original amounts.
-- Orders and notification jobs commit together. Order item SKU IDs, names, color/size, and prices are frozen in PostgreSQL without foreign keys into the live catalog; deal expiry or deletion cannot remove them. The separate worker forwards order details and receipts to the configured Telegram chat; payment verification remains manual.
-- See [docs/checkout.md](docs/checkout.md) for required settings, worker deployment, pricing rules, and operational limits.
+- Orders and notification jobs commit together. Order item SKU IDs, names, color/size, and prices are frozen in SQLite without foreign keys into the live catalog; deal expiry or deletion cannot remove them. The separate worker forwards order details and receipts to the configured Telegram chat; payment verification remains manual.
+- Set the receiving IBAN, service fee, and private Telegram destination in the server environment. Configure shipping for each warehouse. See [Configuration](#configuration) and [warehouse shipping](#configure-warehouse-shipping).
 
 ### Anonymous store browsing
 
@@ -214,31 +220,47 @@ Store IDs depend on `BETTER_AUTH_SECRET`. Rotating it changes public store links
 
 Set `WAREHOUSE_SHIPPING_RULES` in the app’s environment before accepting new orders. The repository does not include actual supplier shipping rates, and catalog product prices do not determine those rates. Each rule needs the warehouse’s confirmed flat shipping charge and optional free-shipping threshold, both in USD cents.
 
-Use exact `product.warehouse` domains as keys, without `www.`. See [Warehouse shipping rules](docs/checkout.md#warehouse-shipping-rules) for the JSON format, limits, and a worked example. The old `CHECKOUT_SHIPPING_USD_CENTS` variable no longer applies. For Compose, recreate the app after changing environment values; `docker compose restart` does not reload container environment variables. See the [development setup](docs/checkout.md#development-preview-with-seeded-products) for the command.
-
-The seed script creates products for `sportmax.example`, `urbanfit.example`, `kidzone.example`, and `shoebox.example`. These are fictional stores, and seeding does **not** configure shipping. The [development preview configuration](docs/checkout.md#development-preview-with-seeded-products) uses $6/free from $50 for Sportmax, $8/free from $75 for Urbanfit, a flat $5 for Kidzone, and always-free shipping for Shoebox. Add the sample rules explicitly to your local `.env.development` to use them. They are not real supplier charges or production defaults.
+Use exact `product.warehouse` domains as keys, without `www.`. Set `flatRateUsd` and `freeFromUsd` to integer amounts in USD cents. Use `null` for `freeFromUsd` when the warehouse has no free-shipping threshold.
 
 Without a matching rule, customers can still browse and edit their cart, but cannot create payment instructions for any cart containing that shipment. Previously saved checkout quotes retain their original shipping totals.
 
+#### Development preview with seeded products
+
+Add these fictional warehouse rates to `.env.development` to preview shipping with seeded products.
+
+```dotenv
+WAREHOUSE_SHIPPING_RULES='{"sportmax.example":{"flatRateUsd":600,"freeFromUsd":5000},"urbanfit.example":{"flatRateUsd":800,"freeFromUsd":7500},"kidzone.example":{"flatRateUsd":500,"freeFromUsd":null},"shoebox.example":{"flatRateUsd":0,"freeFromUsd":null}}'
+```
+
+Recreate the development app to load updated environment values.
+
+```sh
+docker compose --env-file .env.development -f docker-compose.dev.yaml up -d --no-deps --force-recreate app
+```
+
 ### Authentication and addresses
 
-- Better Auth lives under `/api/auth`, using PostgreSQL (Drizzle relations-v2 adapter) plus Redis secondary storage and rate limiting.
+- Better Auth lives under `/api/auth`, using SQLite (Drizzle relations-v2 adapter) plus Redis secondary storage and rate limiting.
 - Email/password accounts require verification; email codes cover verification and password reset. Codes are stored hashed; resets revoke sessions.
 - Google and Facebook appear only when both credentials are configured.
 - Resend sends email in production; dev without a key logs it instead.
-- Address functions resolve the user from request headers and scope every operation to that owner. Max 10 addresses; mutations lock the owner row, and a partial unique index allows one primary. Removing the primary promotes the oldest remaining address.
+- Address functions resolve the user from request headers and scope every operation to that owner. Each account can save up to 10 addresses. The first saved address becomes primary. Immediate write transactions serialize address changes, and a partial unique index allows one primary. Removing the primary promotes the oldest remaining address.
 
 ### Persistence
 
-| Storage                                             | Data                                                                           |
-| --------------------------------------------------- | ------------------------------------------------------------------------------ |
-| PostgreSQL auth tables                              | Users, accounts, sessions, verification.                                       |
-| PostgreSQL `address`                                | Owned addresses, primary selection.                                            |
-| PostgreSQL `orders`, `order_item`                   | Pending orders and immutable purchased-item snapshots.                         |
-| PostgreSQL `checkout_session`, `order_notification` | Private quotes, receipts, and durable notification jobs.                       |
-| Redis Cluster                                       | Live catalog records, SKU/slug lookups, search, carts, auth secondary storage. |
+| Storage                                                               | Data                                                                           |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| SQLite auth tables                                                    | Users and linked sign-in accounts.                                             |
+| SQLite `address`                                                      | Owned addresses, primary selection.                                            |
+| SQLite `orders`, `order_item`                                         | Pending orders and immutable purchased-item snapshots.                         |
+| SQLite `checkout_session`, `order_notification`, `order_cart_cleanup` | Private quotes, receipts, notification and cart cleanup jobs.                  |
+| Redis Cluster                                                         | Live catalog records, SKU/slug lookups, search, carts, auth secondary storage. |
 
-Schema: `src/db/schema.ts`, `src/db/auth-schema.ts`; migrations in `drizzle/`. Redis is persistent: each primary has its own volume and AOF with an every-second fsync. Back up Redis volumes: PostgreSQL does not contain new catalog writes, carts, or auth secondary state. AOF is local persistence, not a backup. Three primaries have no replicas or automatic failover; losing one primary makes the cluster unavailable until it returns. Add a replica per primary for failover.
+The app and worker share one SQLite file on the same host. Compose mounts the local `sqlite-data` volume at `/var/lib/zipwit`. SQLite uses write-ahead logging (WAL) and enforces foreign keys on each connection. Use the SQLite backup API for a consistent live backup, or stop all database clients before copying the whole volume. Keep backups off the host.
+
+Each Redis primary has its own volume and uses AOF with an every-second fsync. Back up these volumes separately for catalog, carts, and auth secondary state. The three primaries have no replicas. Losing one makes the cluster unavailable until it returns.
+
+App deployments initialize the Redis Cluster over the internal Compose network and keep existing cluster data. The disposable CI cluster uses Linux host networking so host-run checks can reach the addresses Redis advertises.
 
 ## UI and localization
 
@@ -261,6 +283,7 @@ Schema: `src/db/schema.ts`, `src/db/auth-schema.ts`; migrations in `drizzle/`. R
 **Responsive and accessible.** Check both languages from 320px up; Georgian strings run long, so let flex/grid children shrink and avoid fixed widths. The shell has a skip link and main landmark; keep labels, visible focus, pending/disabled states, status announcements, and reduced-motion support intact. Test loading, empty, error, and success states.
 
 **Localization.** `ka` (default) and `en`. The server reads the HTTP-only `zipwit-locale` cookie before rendering; the language selector saves via a server function and invalidates route data.
+
 - `src/i18n/storefront-ka.ts` maps English source strings to Georgian. Use `useTranslation()` in components and `translate()` (explicit locale) elsewhere.
 - `en.ts` / `ka.ts` hold typed messages for forms and custom auth flows; `auth-ka.ts` holds Better Auth UI's Georgian copy.
 - `src/lib/price.ts` assembles currency layouts explicitly to keep server and browser output consistent across ICU/CLDR versions. Georgian uses nonbreaking spaces for grouping, a decimal comma, and a trailing currency symbol; English uses comma grouping, a decimal point, and a leading symbol. Use `usePriceFormatter()` in components rather than formatting currency independently. Price-check times use `Asia/Tbilisi`.
@@ -284,18 +307,15 @@ docker compose --env-file .env.development -f docker-compose.dev.yaml down
 
 Dev project is `zipwit-dev`, production is `zipwit`; their volumes are separate. `down --volumes` deletes that stack's data.
 
-Host development: Node.js 26, pnpm 12.14.0, `pnpm install --frozen-lockfile`, plus your own reachable PostgreSQL and Redis before `pnpm db:migrate` and `pnpm dev`. Compose does **not** publish DB or Redis ports.
+Host development: Node.js 26.13.1, pnpm 12.21.0, `pnpm install --frozen-lockfile`, plus a reachable Redis service before `pnpm db:migrate` and `pnpm dev`. The first migration creates the local SQLite file. Compose keeps Redis ports internal.
 
 ## Configuration
 
-Compose injects `.env.development` or `.env.production` through each app service’s `env_file`. These are real, untracked files; get values separately on a new machine. The built production Node server does not load an env file itself; supply its process environment through Compose or your service manager. Pass `--env-file` to Compose so credential interpolation matches the app. Package DB/maintenance commands use Node's `--env-file-if-exists`, default to development, and honor existing process env; use `NODE_ENV=production pnpm db:migrate` to target production. Validation lives in `src/server/env.server.ts` and `src/db/connection.ts`.
+Compose injects `.env.development` or `.env.production` through each app service’s `env_file`. These are real, untracked files; get values separately on a new machine. The built production Node server does not load an env file itself; supply its process environment through Compose or your service manager. Package DB/maintenance commands use Node's `--env-file-if-exists`, default to development, and honor existing process env; use `NODE_ENV=production pnpm db:migrate` to target production. Validation lives in `src/server/env.server.ts` and `src/db/connection.ts`.
 
 | Variable                                        | Purpose                                                                                                                     |
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `DB_USER`, `DB_PASSWORD`, `DB_NAME`             | Required by both stacks; initialize PostgreSQL and connect the app.                                                         |
-| `DB_HOST`, `DB_PORT`                            | Default `localhost:5432`; Compose sets `db:5432`.                                                                           |
-| `DB_SSL`                                        | Default `false`; Compose sets `false` in dev, `true` in production.                                                         |
-| `DB_SSL_SERVERNAME`                             | Required in production; hostname verified against the DB certificate.                                                       |
+| `SQLITE_PATH`                                   | SQLite file path. Defaults to `zipwit.sqlite` in the working directory. Compose sets `/var/lib/zipwit/zipwit.sqlite`.       |
 | `REDIS_CLUSTER_NODES`                           | Comma-separated Redis seed URLs. Compose sets all three internal nodes. Credentials belong in the separate variables below. |
 | `REDIS_USERNAME`, `REDIS_PASSWORD`, `REDIS_TLS` | Optional shared ACL credentials and TLS, applied to every discovered node.                                                  |
 | `REDIS_HOST`, `REDIS_PORT`                      | Standalone fallback for host tools when cluster seeds are unset; defaults to `localhost:6379`.                              |
@@ -306,12 +326,13 @@ Compose injects `.env.development` or `.env.production` through each app service
 | `EMAIL_FROM`                                    | Sender; defaults to `Zipwit Shop <onboarding@resend.dev>`. Set your own for production.                                     |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`      | Optional Google sign-in; set both or neither.                                                                               |
 | `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`  | Optional Facebook sign-in; set both or neither.                                                                             |
-| `CHECKOUT_IBAN`                                 | Receiving IBAN; required for new checkouts. See [checkout setup](docs/checkout.md#deployment-settings).                     |
+| `CHECKOUT_IBAN`                                 | Receiving IBAN with a valid checksum. Required for new checkouts.                                                           |
 | `CHECKOUT_SERVICE_FEE_BPS`                      | Service fee in basis points, from 0 to 10,000; required for new checkouts.                                                  |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`        | Required for new checkouts and the notification worker.                                                                     |
+| `OPS_ALERT_EMAIL`                               | Optional address for alerts after repeated Telegram delivery failures.                                                      |
 | `WAREHOUSE_SHIPPING_RULES`                      | Required for new orders: per-warehouse shipping rates and thresholds. See [shipping setup](#configure-warehouse-shipping).  |
 
-Compose's explicit `environment` values override env-file values. Changing PostgreSQL credentials does not update an existing volume's users or passwords.
+Compose's explicit `environment` values override env-file values.
 
 ## Commands
 
@@ -337,34 +358,24 @@ Run with `pnpm` on the host, or prefix with `docker compose --env-file .env.deve
 | `catalog:check`          | Verify catalog publication, Redis reads, updates, expiry, carts and cross-shard cleanup against disposable services. |
 | `search:check`           | Check Redis Search and JSON support using a temporary test index.                                                    |
 
-Redis needs the Search and JSON modules; Compose uses `redis:8.10.2-alpine`.
+Redis needs the Search and JSON modules; Compose uses `redis:8.10.3-alpine`.
 
 ## Production
 
 The production stack builds the app, runs migrations, and serves it through Nginx. Port 80 redirects to HTTPS on 443; Nginx serves built assets directly and proxies the rest to Node.
 
 **Before starting**
-1. Configure `.env.production`: DB credentials, a distinct `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`.
+
+1. Configure `.env.production`: a distinct `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`.
 2. Set `BETTER_AUTH_URL` and `SITE_URL` to your public HTTPS origin.
-3. Provide `certs/fullchain.pem` and `certs/privkey.pem` (real files, not symlinks). They are mounted into both Nginx and PostgreSQL.
-4. Set `DB_SSL_SERVERNAME` to a hostname the certificate covers. DB connections verify both trust and hostname.
-5. To accept orders, configure the receiving IBAN, service fee, Telegram destination, and confirmed warehouse shipping rules as described in [Checkout setup](docs/checkout.md). Development sample rates are not production defaults.
-
-**Certificate permissions.** PostgreSQL refuses a private key that is group/world-accessible or not owned by its user. You can fix this on the host without copying the key:
-
-```sh
-sudo chown root:70 certs/privkey.pem   # uid/gid 70 = postgres in the Alpine image
-sudo chmod 640 certs/privkey.pem       # root-owned keys may be 0640
-chmod 644 certs/fullchain.pem
-```
-
-Alternative: `chown 70:70` with `chmod 600`. Nginx's master process runs as root and reads either. If certbot renews the files, re-apply ownership in a deploy hook. With rootless Docker/Podman, uid mapping differs; copy the key inside the container instead.
+3. Provide `certs/fullchain.pem` and `certs/privkey.pem` (real files, not symlinks). Nginx uses these for HTTPS.
+4. To accept orders, configure the receiving IBAN, service fee, Telegram destination, and confirmed warehouse shipping rules. See [Checkout](#checkout).
 
 **Startup order**
 
 ```mermaid
 flowchart LR
-    DB[PostgreSQL healthy] --> Migrate[Migrations succeed]
+    Volume[(Local SQLite volume)] --> Migrate[Migrations succeed]
     Migrate --> App
     Redis[Redis Cluster initialized] --> App[App healthy]
     App --> Web[Nginx]
@@ -406,7 +417,6 @@ docker compose --env-file .env.production -f docker-compose.prod.yaml run --rm m
 | `docker-compose.*.yaml`, `nginx.*.conf` | Per-environment service and proxy config.                                  |
 | `vite.config.ts`, `vitest.config.ts`    | Separate app build and unit-test configs.                                  |
 | `.github/workflows/ci.yml`              | CI checks and Redis Search integration check.                              |
-| `docs/`                                 | Checkout setup and operational details.                                    |
 
 ## Testing
 
@@ -418,7 +428,7 @@ pnpm verify && pnpm check:deprecations && pnpm knip && pnpm build && pnpm search
 
 `verify` covers Biome, TypeScript, and unit tests. `search:check` needs Redis with Search and JSON (use the container prefix under Compose).
 
-Tests live beside source as `*.test.ts(x)`, run under a separate Node-based Vitest config so Start/Nitro RPC transforms don't bypass mocked server boundaries. `check:deprecations` reads TypeScript's suggestion diagnostics; it is not a vulnerability scanner and depends on the installed TypeScript version.
+Unit tests live in `test/`, mirror the layout of `src/`, and use the `*.test.ts` or `*.test.tsx` suffix. The separate Node-based Vitest config keeps Start and Nitro RPC transforms out of the unit tests so they can mock server boundaries. `check:deprecations` reads TypeScript's suggestion diagnostics, which depend on the installed TypeScript version.
 
 Shipping tests cover per-warehouse thresholds, multiple paid shipments, quantity changes, GEL conversion, missing or invalid rules, and saved-quote compatibility.
 
@@ -426,7 +436,9 @@ Store tests cover route scoping, anonymous identifiers in product responses, and
 
 Cart reads and checkout persistence are tested with mocked services; these are not live-database integration tests.
 
-CI runs on pushes to `main` and pull requests with disposable PostgreSQL and a real three-primary Redis Cluster. It runs migrations, search checks, and `catalog:check`; it does not run browser end-to-end tests. For UI work, also check both languages at mobile/tablet/desktop widths, keyboard use, dialog dismissal, and loading/empty/error states. Verify auth, authorization, persistence, and concurrency against real services.
+The cart recovery script (`scripts/cart-check.ts`) uses a dedicated expiring Redis key. It leaves visitor carts alone.
+
+CI runs on pushes to `main` and pull requests with temporary SQLite files and a three-primary Redis Cluster. It runs migrations, search checks, and `catalog:check`; it does not run browser end-to-end tests. For UI work, also check both languages at mobile/tablet/desktop widths, keyboard use, dialog dismissal, and loading/empty/error states. Verify auth, authorization, persistence, and concurrency against real services.
 
 ## Extending
 
@@ -458,31 +470,31 @@ New departments or categories change the taxonomy: update `src/data/catalog.ts`,
 
 Edit `src/data/site.ts` (brand copy, currency, time zone) and `src/data/socials.ts`; adjust tokens in `src/styles.css`. Keep `src/i18n/` in sync and don't present unimplemented services as available actions.
 
+Replace the social platform homepages in `src/data/socials.ts` with the shop’s profile URLs when they are available.
+
 The shopping guide lives in `src/components/home/how-it-works.tsx`; the About story and selection process live in `src/routes/about.tsx`, with scene styles in `src/styles.css`. Keep the shopper instructions distinct from the store-selection story. Footer links live in `src/components/layout/footer.tsx`; Georgian storefront copy lives in `src/i18n/storefront-ka.ts`. Update page metadata and translations when changing the story, and retain keyboard and reduced-motion behavior when adjusting the illustration.
 
 ## Troubleshooting
 
-| Symptom                                                | Check                                                                                                                                                 |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Compose reports missing variables                      | Set matching `--env-file` / `-f` values; see [Configuration](#configuration).                                                                         |
-| App won't start or Nginx returns 502                   | `... ps -a`, then check `migrate`, `app`, `web` logs. A failed migration blocks the app.                                                              |
-| `Permission denied` on mounted files (Fedora/RHEL)     | Keep SELinux bind-mount labels; inspect denials with `sudo ausearch -m avc -ts recent`.                                                               |
-| `db` fails with private-key ownership/permission error | See [Certificate permissions](#production).                                                                                                           |
-| Production database TLS fails                          | Check certificate trust, file access, and the `DB_SSL_SERVERNAME` match.                                                                              |
-| Host commands can't reach PostgreSQL or Redis          | Ports aren't published. Run commands in the app container or provide separate services.                                                               |
-| Catalog is empty                                       | Write products with `putCatalogProduct`, or seed dev only. Inspect all Redis nodes and the init service.                                              |
-| Unknown `FT.*` or `JSON.*` command                     | Redis lacks the modules. Use the configured image and run `search:check`.                                                                             |
-| Stale products or prices                               | Write a fresh timestamped catalog revision, then wait out or invalidate the client cache. `search:sync` only rebuilds derived Redis Search data.      |
-| Verification email missing                             | Dev without Resend: check app logs. Production: check the Resend key and sender.                                                                      |
-| Social sign-in missing                                 | Set both ID and secret, callback settings, and the correct public auth origin.                                                                        |
-| New route not recognized                               | Run the Vite dev/build flow to regenerate `src/routeTree.gen.ts`, then typecheck.                                                                     |
-| Shipping is unavailable for a shipment                 | Confirm the exact catalog domain exists in `WAREHOUSE_SHIPPING_RULES`, validate its rate/threshold, and recreate the app container after env changes. |
-| Shipping preview has no estimate                       | GEL carts need a valid NBG rate; check outbound access and rate-service logs. USD carts do not need conversion for estimates.                         |
-| Checkout is temporarily unavailable                    | Check IBAN, service fee, Telegram settings, and NBG access. See [checkout setup](docs/checkout.md).                                                   |
-| Saved checkout still shows old shipping                | Expected: existing quotes are frozen. Start a new checkout to use updated rules.                                                                      |
-| Unit tests start Nitro or generate RPC calls           | Make sure Vitest loads `vitest.config.ts`; don't merge app server plugins into it.                                                                    |
+| Symptom                                            | Check                                                                                                                                                 |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Compose reports missing variables                  | Set matching `--env-file` / `-f` values; see [Configuration](#configuration).                                                                         |
+| App won't start or Nginx returns 502               | `... ps -a`, then check `migrate`, `app`, `web` logs. A failed migration blocks the app.                                                              |
+| `Permission denied` on mounted files (Fedora/RHEL) | Keep SELinux bind-mount labels; inspect denials with `sudo ausearch -m avc -ts recent`.                                                               |
+| Host commands can't reach Redis                    | Ports aren't published. Run commands in the app container or provide separate services.                                                               |
+| Catalog is empty                                   | Write products with `putCatalogProduct`, or seed dev only. Inspect all Redis nodes and the init service.                                              |
+| Unknown `FT.*` or `JSON.*` command                 | Redis lacks the modules. Use the configured image and run `search:check`.                                                                             |
+| Stale products or prices                           | Write a fresh timestamped catalog revision, then wait out or invalidate the client cache. `search:sync` only rebuilds derived Redis Search data.      |
+| Verification email missing                         | Dev without Resend: check app logs. Production: check the Resend key and sender.                                                                      |
+| Social sign-in missing                             | Set both ID and secret, callback settings, and the correct public auth origin.                                                                        |
+| New route not recognized                           | Run the Vite dev/build flow to regenerate `src/routeTree.gen.ts`, then typecheck.                                                                     |
+| Shipping is unavailable for a shipment             | Confirm the exact catalog domain exists in `WAREHOUSE_SHIPPING_RULES`, validate its rate/threshold, and recreate the app container after env changes. |
+| Shipping preview has no estimate                   | GEL carts need a valid NBG rate; check outbound access and rate-service logs. USD carts do not need conversion for estimates.                         |
+| Checkout is temporarily unavailable                | Check IBAN, service fee, Telegram settings, and NBG access. See [checkout settings](#checkout).                                                       |
+| Saved checkout still shows old shipping            | Expected: existing quotes are frozen. Start a new checkout to use updated rules.                                                                      |
+| Unit tests start Nitro or generate RPC calls       | Make sure Vitest loads `vitest.config.ts`; don't merge app server plugins into it.                                                                    |
 
-`/api/health` is liveness only: it shows the process answers HTTP, not that search, PostgreSQL, email, or checkout work.
+`/api/health` is liveness only: it shows the process answers HTTP, not that search, SQLite, email, or checkout work.
 
 ## Known limitations
 

@@ -10,7 +10,6 @@ type Email = { subject: string; html: string };
 
 export async function sendEmail({ to, subject, html }: Email & { to: string }) {
 	if (!resend) {
-		// Only reachable in development; production requires the key.
 		console.info(`[email not sent] to=${to} subject=${subject}\n${html}`);
 		return;
 	}

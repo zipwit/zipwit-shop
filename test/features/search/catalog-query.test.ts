@@ -1,0 +1,169 @@
+import { describe, expect, it } from "vitest";
+import { schemaArgs } from "#/features/search/catalog-fields";
+import { DEFAULT_FILTERS } from "#/features/search/catalog-filters";
+import {
+	buildQuery,
+	escapeTag,
+	expandFacet,
+	facetOptions,
+	sortOptions,
+	textClause,
+} from "#/features/search/catalog-query";
+
+const listing = { mode: "listing" } as const;
+
+describe("escapeTag", () => {
+	it("escapes spaces and punctuation but leaves letters and digits", () => {
+		expect(escapeTag("New Balance")).toBe("New\\ Balance");
+		expect(escapeTag("38.5")).toBe("38\\.5");
+		expect(escapeTag("2xl")).toBe("2xl");
+	});
+});
+
+describe("textClause", () => {
+	it("turns words into one prefix clause each", () => {
+		expect(textClause("Nike air")).toBe("@q:nike* @q:air*");
+	});
+
+	it("cannot carry query syntax", () => {
+		expect(textClause('air) | @brand:{x} "')).toBe("@q:air* @q:brand*");
+		expect(textClause("-(*)")).toBe("");
+	});
+
+	it("is empty for nothing searchable", () => {
+		expect(textClause(undefined)).toBe("");
+		expect(textClause("  a  ")).toBe("");
+	});
+
+	it("caps the number of terms", () => {
+		expect(textClause("aa bb cc dd ee ff gg hh ii jj").split(" ")).toHaveLength(
+			8,
+		);
+	});
+});
+
+describe("buildQuery", () => {
+	it("matches everything when nothing narrows it", () => {
+		expect(buildQuery(listing, DEFAULT_FILTERS)).toBe("*");
+	});
+
+	it("scopes to a department and category", () => {
+		expect(
+			buildQuery(
+				{ ...listing, department: "men", category: "shoes" },
+				DEFAULT_FILTERS,
+			),
+		).toBe("@department:{men} @category:{shoes}");
+	});
+
+	it("ORs values within a facet and ANDs facets together", () => {
+		expect(
+			buildQuery(listing, {
+				...DEFAULT_FILTERS,
+				brands: ["Nike", "New Balance"],
+				sizes: ["41"],
+				colors: ["black"],
+			}),
+		).toBe("@brand:{Nike | New\\ Balance} @sizes:{41} @colors:{black}");
+	});
+
+	it("renders open and closed price ranges", () => {
+		expect(buildQuery(listing, { ...DEFAULT_FILTERS, minPrice: 5000 })).toBe(
+			"@price:[5000 +inf]",
+		);
+		expect(buildQuery(listing, { ...DEFAULT_FILTERS, maxPrice: 9000 })).toBe(
+			"@price:[-inf 9000]",
+		);
+		expect(
+			buildQuery(listing, { ...DEFAULT_FILTERS, minPrice: 1, maxPrice: 2 }),
+		).toBe("@price:[1 2]");
+	});
+
+	it("restricts to discounted products for the sale toggle and the deals scope", () => {
+		expect(buildQuery(listing, { ...DEFAULT_FILTERS, sale: true })).toBe(
+			"@discount:[1 +inf]",
+		);
+		expect(buildQuery({ mode: "deals" }, DEFAULT_FILTERS)).toBe(
+			"@discount:[1 +inf]",
+		);
+	});
+
+	it("filters deals by the displayed variant's price", () => {
+		expect(
+			buildQuery({ mode: "deals" }, { ...DEFAULT_FILTERS, maxPrice: 6000 }),
+		).toBe("@dealPrice:[-inf 6000] @discount:[1 +inf]");
+	});
+});
+
+describe("sortOptions / facetOptions / schemaArgs", () => {
+	it("sorts on the unique keys", () => {
+		expect(sortOptions("price-desc", listing)).toEqual({
+			BY: "sortPrice",
+			DIRECTION: "DESC",
+		});
+		expect(sortOptions("relevance", listing)).toBeUndefined();
+	});
+
+	it.each(["price-asc", "price-desc"] as const)(
+		"sorts deals by their displayed price (%s)",
+		(sort) => {
+			expect(sortOptions(sort, { mode: "deals" })).toEqual({
+				BY: "sortDealPrice",
+				DIRECTION: sort === "price-asc" ? "ASC" : "DESC",
+			});
+		},
+	);
+
+	it("groups a facet by its own field", () => {
+		expect(facetOptions("sizes").STEPS[0]).toMatchObject({
+			type: "GROUPBY",
+			properties: "@sizes",
+			REDUCE: { type: "COUNT", AS: "count" },
+		});
+	});
+
+	it("declares path, alias and type for each field", () => {
+		const args = schemaArgs();
+		expect(args.slice(0, 4)).toEqual(["$.searchText", "AS", "q", "TEXT"]);
+	});
+
+	it("gives the multi-value tags a comma separator", () => {
+		const args = schemaArgs().join(" ");
+		expect(args).toContain("$.sizes AS sizes TAG SEPARATOR ,");
+		expect(args).toContain("$.colors AS colors TAG SEPARATOR ,");
+	});
+});
+
+describe("expandFacet", () => {
+	it("splits joined values and sums their counts", () => {
+		expect(
+			expandFacet(
+				[
+					{ sizes: "40,41", count: "2" },
+					{ sizes: "41", count: "3" },
+					{ sizes: "m", count: "1" },
+				],
+				"sizes",
+				true,
+			),
+		).toEqual([
+			{ value: "41", count: 5 },
+			{ value: "40", count: 2 },
+			{ value: "m", count: 1 },
+		]);
+	});
+
+	it("keeps single-value fields whole and skips unreadable rows", () => {
+		expect(
+			expandFacet(
+				[
+					{ brand: "New Balance", count: "1" },
+					{ count: "4" },
+					{ brand: "Nike", count: "x" },
+				],
+				"brand",
+				false,
+			),
+		).toEqual([{ value: "New Balance", count: 1 }]);
+	});
+});

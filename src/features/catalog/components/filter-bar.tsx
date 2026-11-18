@@ -4,6 +4,7 @@ import type { CatalogFacets } from "#/features/search/catalog.functions";
 import type {
 	CatalogFilters,
 	CatalogScope,
+	UpdateCatalogFilters,
 } from "#/features/search/catalog-filters";
 import { formatCount } from "#/i18n/format";
 import { useLocale } from "#/i18n/locale";
@@ -16,9 +17,12 @@ import { SearchBox } from "./search-box";
 type FilterBarProps = {
 	scope: CatalogScope;
 	filters: CatalogFilters;
-	facets: CatalogFacets;
-	total: number;
-	onChange: (filters: CatalogFilters) => void;
+	facets?: CatalogFacets;
+	facetsPending?: boolean;
+	onRetryFacets?: () => void;
+	total?: number;
+	resultsPending?: boolean;
+	onChange: (update: UpdateCatalogFilters) => void;
 };
 
 /** Pure composition: every control reads `filters` and reports a change; the URL owns the state. */
@@ -26,7 +30,10 @@ export function FilterBar({
 	scope,
 	filters,
 	facets,
+	facetsPending,
+	onRetryFacets,
 	total,
+	resultsPending,
 	onChange,
 }: FilterBarProps) {
 	const t = useTranslation();
@@ -34,7 +41,7 @@ export function FilterBar({
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const filtersId = useId();
 	const set = (patch: Partial<CatalogFilters>) =>
-		onChange({ ...filters, ...patch });
+		onChange((current) => ({ ...current, ...patch }));
 
 	const isListing = scope.mode === "listing";
 
@@ -49,11 +56,20 @@ export function FilterBar({
 				<p
 					className="type-caption col-span-2 whitespace-nowrap text-muted-foreground md:col-span-1 md:col-start-2 md:row-start-1"
 					aria-live="polite"
+					aria-atomic="true"
 				>
-					<span className="type-num text-foreground">
-						{formatCount(total, locale)}
-					</span>{" "}
-					{t(total === 1 ? "result" : "results")}
+					{total === undefined ? (
+						resultsPending ? (
+							t("Loading results…")
+						) : null
+					) : (
+						<>
+							<span className="type-num text-foreground">
+								{formatCount(total, locale)}
+							</span>{" "}
+							{t(total === 1 ? "result" : "results")}
+						</>
+					)}
 				</p>
 				<Button
 					variant="outline"
@@ -71,14 +87,37 @@ export function FilterBar({
 
 			<div
 				id={filtersId}
+				aria-busy={facetsPending}
 				className={`${filtersOpen ? "flex" : "hidden"} flex-wrap items-center gap-2 md:flex`}
 			>
-				<CatalogFilterControls
-					filters={filters}
-					facets={facets}
-					showSale={isListing}
-					onChange={set}
-				/>
+				{facets && (
+					<CatalogFilterControls
+						filters={filters}
+						facets={facets}
+						showSale={isListing}
+						onChange={set}
+					/>
+				)}
+				{!facets && facetsPending && (
+					<p className="type-caption text-muted-foreground">
+						{t("Loading filters…")}
+					</p>
+				)}
+				{onRetryFacets && (
+					<div className="flex flex-wrap items-center gap-3">
+						<p role="status" className="type-caption text-muted-foreground">
+							{t("Couldn't load filters.")}
+						</p>
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={facetsPending}
+							onClick={onRetryFacets}
+						>
+							{t("Try again")}
+						</Button>
+					</div>
+				)}
 			</div>
 
 			<ActiveFilters

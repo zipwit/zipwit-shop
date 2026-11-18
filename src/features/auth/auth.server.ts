@@ -31,7 +31,7 @@ const secondaryStorage: NonNullable<BetterAuthOptions["secondaryStorage"]> = {
 const perHour = (max: number) => ({ window: 3600, max });
 
 export const auth = betterAuth({
-	database: drizzleAdapter(db, { provider: "pg", schema }),
+	database: drizzleAdapter(db, { provider: "sqlite", schema }),
 	secondaryStorage,
 
 	appName: site.name,
@@ -69,7 +69,6 @@ export const auth = betterAuth({
 		customRules: {
 			"/sign-in/email": { window: 60, max: 5 },
 			"/sign-up/email": perHour(5),
-			// email-otp limits its send, verify and reset endpoints to 3/minute.
 			"/change-email": perHour(3),
 		},
 	},

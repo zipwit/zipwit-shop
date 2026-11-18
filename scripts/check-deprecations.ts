@@ -1,8 +1,6 @@
 import { relative } from "node:path";
 import { API } from "typescript/unstable/sync";
 
-// tsc reports type errors, but deprecated APIs are suggestion diagnostics.
-// Read them from the installed compiler so checks follow our pinned versions.
 const cwd = process.cwd();
 const api = new API({ cwd });
 

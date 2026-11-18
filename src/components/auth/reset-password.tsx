@@ -11,9 +11,10 @@ import { useAppForm } from "#/components/form/app-form";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { FieldDescription, FieldGroup } from "#/components/ui/field";
 import { authClient } from "#/features/auth/auth-client";
+import { useAuthReturnTo } from "#/features/auth/auth-return-to";
 import { fill, useMessages } from "#/i18n/messages";
 import { cn } from "#/lib/utils";
-import { PasswordStrengthMeter } from "./password-strength-meter";
+import { ConfirmPasswordField, NewPasswordField } from "./new-password-field";
 import { ResendCodeButton } from "./resend-code-button";
 import { RESET_PASSWORD_EMAIL_STORAGE_KEY } from "./storage-keys";
 import { usePasswordValidation } from "./use-password-validation";
@@ -30,14 +31,18 @@ export function ResetPassword({ className }: ResetPasswordProps) {
 		emailAndPassword,
 		localization,
 		navigate,
-		redirectTo,
 		viewPaths,
 		Link,
 	} = useAuth();
+	const redirectTo = useAuthReturnTo();
 	const messages = useMessages();
 	const { validatePassword, validateConfirmation } = usePasswordValidation();
 	const signInURL = getAuthLinkURL(
 		`${basePaths.auth}/${viewPaths.auth.signIn}`,
+		redirectTo,
+	);
+	const forgotPasswordURL = getAuthLinkURL(
+		`${basePaths.auth}/${viewPaths.auth.forgotPassword}`,
 		redirectTo,
 	);
 
@@ -45,8 +50,6 @@ export function ResetPassword({ className }: ResetPasswordProps) {
 		authClient,
 		{
 			onError: (error) => {
-				// The haveIBeenPwned plugin rejects on the password itself, so it
-				// belongs against the field rather than in a toast.
 				if (isPasswordCompromisedError(error)) {
 					setIsCompromised(true);
 				}
@@ -119,23 +122,14 @@ export function ResetPassword({ className }: ResetPasswordProps) {
 									onChange: ({ value }) => validatePassword(value),
 								}}
 							>
-								{(field) => (
-									<field.FormTextField
+								{() => (
+									<NewPasswordField
 										label={localization.auth.password}
-										type="password"
-										autoComplete="new-password"
 										placeholder={localization.auth.newPasswordPlaceholder}
-										required
 										disabled={isPending || !email}
-										minLength={emailAndPassword?.minPasswordLength}
-										maxLength={emailAndPassword?.maxPasswordLength}
-										error={
-											isCompromised && localization.auth.passwordCompromised
-										}
-										onValueChange={() => setIsCompromised(false)}
-									>
-										<PasswordStrengthMeter password={field.state.value} />
-									</field.FormTextField>
+										isCompromised={isCompromised}
+										onEdit={() => setIsCompromised(false)}
+									/>
 								)}
 							</form.AppField>
 
@@ -151,17 +145,8 @@ export function ResetPassword({ className }: ResetPasswordProps) {
 											),
 									}}
 								>
-									{(field) => (
-										<field.FormTextField
-											label={localization.auth.confirmPassword}
-											type="password"
-											autoComplete="new-password"
-											placeholder={localization.auth.confirmPasswordPlaceholder}
-											required
-											disabled={isPending || !email}
-											minLength={emailAndPassword?.minPasswordLength}
-											maxLength={emailAndPassword?.maxPasswordLength}
-										/>
+									{() => (
+										<ConfirmPasswordField disabled={isPending || !email} />
 									)}
 								</form.AppField>
 							)}
@@ -183,7 +168,7 @@ export function ResetPassword({ className }: ResetPasswordProps) {
 								/>
 							)}
 							<Link
-								href={`${basePaths.auth}/${viewPaths.auth.forgotPassword}`}
+								href={forgotPasswordURL}
 								className="text-sm underline underline-offset-4"
 							>
 								{messages.resetPassword.useAnotherEmail}
@@ -195,13 +180,7 @@ export function ResetPassword({ className }: ResetPasswordProps) {
 				<div className="flex flex-col gap-3 items-center w-full mt-4">
 					<FieldDescription className="text-center">
 						{localization.auth.rememberYourPassword}{" "}
-						<Link
-							href={getAuthLinkURL(
-								`${basePaths.auth}/${viewPaths.auth.signIn}`,
-								redirectTo,
-							)}
-							className="underline underline-offset-4"
-						>
+						<Link href={signInURL} className="underline underline-offset-4">
 							{localization.auth.signIn}
 						</Link>
 					</FieldDescription>

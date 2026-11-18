@@ -11,6 +11,7 @@ import {
 	catalogSorts,
 	effectiveSort,
 	sortLabels,
+	type UpdateCatalogFilters,
 } from "#/features/search/catalog-filters";
 import { useTranslation } from "#/i18n/translate";
 
@@ -21,23 +22,25 @@ export function CatalogSort({
 }: {
 	filters: CatalogFilters;
 	scope: CatalogScope;
-	onChange: (filters: CatalogFilters) => void;
+	onChange: (update: UpdateCatalogFilters) => void;
 }) {
 	const t = useTranslation();
 	const choices = catalogSorts
 		.filter((value) => value !== "relevance" || filters.q)
 		.map((value) => ({ value, label: t(sortLabels[value]) }));
-	const naturalSort = effectiveSort({ ...filters, sort: undefined }, scope);
 	return (
 		<Select
 			items={choices}
 			value={effectiveSort(filters, scope)}
 			onValueChange={(sort) => {
 				if (sort)
-					onChange({
-						...filters,
-						sort: sort === naturalSort ? undefined : sort,
-					});
+					onChange((current) => ({
+						...current,
+						sort:
+							sort === effectiveSort({ ...current, sort: undefined }, scope)
+								? undefined
+								: sort,
+					}));
 			}}
 		>
 			<SelectTrigger

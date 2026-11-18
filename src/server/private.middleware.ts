@@ -4,7 +4,10 @@ import { LOCALE_COOKIE_NAME, resolveLocale } from "#/i18n/locale-config";
 import { translate } from "#/i18n/translate";
 import { PublicError } from "./public-error";
 
-/** Shared response policy for private data, including failed requests. */
+/**
+ * Prevents caching private responses and logs metadata for unexpected errors.
+ * Raw database and HTTP errors can contain customer data or credentials.
+ */
 export const privateRequest = createMiddleware({ type: "function" }).server(
 	async ({ next }) => {
 		setResponseHeader("Cache-Control", "private, no-store");
@@ -12,7 +15,6 @@ export const privateRequest = createMiddleware({ type: "function" }).server(
 			return await next();
 		} catch (error) {
 			const known = error instanceof PublicError;
-			// Database/HTTP errors can contain customer data, SQL or credentials.
 			if (!known) {
 				const reference = crypto.randomUUID();
 				setResponseHeader("X-Request-Id", reference);

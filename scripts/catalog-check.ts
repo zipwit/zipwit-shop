@@ -78,6 +78,19 @@ try {
 	const first = rows[0];
 	const variant = first?.skus[0];
 	assert.ok(first && variant);
+	const matched = await searchCatalog(
+		{ mode: "listing" },
+		{
+			...filters,
+			q: "cluster",
+			colors: [variant.color],
+			maxPrice: variant.price,
+		},
+		1,
+		20,
+	);
+	assert.equal(matched.total, 1);
+	assert.equal(matched.items[0]?.skuId, variant.id);
 	assert.equal((await getCatalogProduct(first.slug))?.skus[0]?.id, variant.id);
 	const detail = await findProductBySlug(first.slug);
 	assert.equal(detail?.purchasable, true);
@@ -87,16 +100,26 @@ try {
 	const stats = await getStats();
 	assert.ok(stats.deals >= 3 && stats.warehouses >= 2);
 	console.log(
-		"✓ Direct Redis catalog writes, details, multi-SKU lookups, listings and live stats (no PostgreSQL)",
+		"✓ Direct Redis catalog writes, details, multi-SKU lookups, listings and live stats (Redis only)",
 	);
 	const cartKey = `catalog-check:cart:${run}`;
 	const cart = createCartStore(redis, findCatalogSkus);
 	try {
 		await Promise.all(ids.map((id) => cart.add(cartKey, id)));
 		assert.equal(await redis.hLen(cartKey), 3);
-		await cart.removePurchased(cartKey, [{ id: variant.id, quantity: 1 }]);
+		const deadline = new Date(Date.now() + 30_000);
+		const purchased = [{ id: variant.id, quantity: 1 }];
+		await cart.removePurchased(cartKey, run, purchased, deadline);
 		assert.equal(await redis.hLen(cartKey), 2);
+		await cart.add(cartKey, variant.id);
+		await assert.rejects(
+			cart.removePurchased(cartKey, run, purchased, new Date(0)),
+			/lease expired/,
+		);
+		await cart.removePurchased(cartKey, run, purchased, deadline);
+		assert.equal(await redis.hGet(cartKey, variant.id), "1");
 	} finally {
+		await cart.acknowledgePurchaseCleanup(cartKey, run);
 		await redis.del(cartKey);
 	}
 	console.log("✓ Atomic cart scripts across product shards");
