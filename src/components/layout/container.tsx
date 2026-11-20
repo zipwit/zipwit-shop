@@ -1,5 +1,4 @@
-import { type HTMLMotionProps, motion } from "motion/react";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps } from "react";
 import { cn } from "#/lib/utils";
 
 /** Centers content in the site's standard content column. */
@@ -24,12 +23,11 @@ export function Section({
 	children,
 	spacing = "standard",
 	...props
-}: Omit<HTMLMotionProps<"section">, "children"> & {
-	children?: ReactNode;
+}: ComponentProps<"section"> & {
 	spacing?: "standard" | "compact" | "none";
 }) {
 	return (
-		<motion.section
+		<section
 			className={cn(
 				spacing === "standard" && "py-16 md:py-24",
 				spacing === "compact" && "py-12 md:py-16",
@@ -38,6 +36,6 @@ export function Section({
 			{...props}
 		>
 			<Container>{children}</Container>
-		</motion.section>
+		</section>
 	);
 }

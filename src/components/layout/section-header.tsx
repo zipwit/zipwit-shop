@@ -1,6 +1,4 @@
-import { motion } from "motion/react";
 import type { ReactNode } from "react";
-import { useSceneReveal } from "#/components/motion/use-scene-reveal";
 import { cn } from "#/lib/utils";
 import { Eyebrow } from "./eyebrow";
 
@@ -20,10 +18,8 @@ export function SectionHeader({
 	action,
 	className,
 }: SectionHeaderProps) {
-	const reveal = useSceneReveal();
 	return (
-		<motion.div
-			{...reveal}
+		<div
 			className={cn(
 				"flex flex-wrap items-end justify-between gap-4",
 				className,
@@ -41,6 +37,6 @@ export function SectionHeader({
 				)}
 			</div>
 			{action}
-		</motion.div>
+		</div>
 	);
 }

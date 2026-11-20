@@ -1,17 +1,13 @@
 import { ArrowLeft01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
-import { motion } from "motion/react";
 import { useRef } from "react";
 import { Section } from "#/components/layout/container";
 import { SectionHeader } from "#/components/layout/section-header";
-import { useSceneReveal } from "#/components/motion/use-scene-reveal";
 import { Button } from "#/components/ui/button";
 import type { Deal } from "#/data/catalog.types";
-import {
-	DealCard,
-	dealImageLoading,
-} from "#/features/catalog/components/deal-card";
+import { DealCard } from "#/features/catalog/components/deal-card";
+import { catalogImageLoading } from "#/features/catalog/components/product-image";
 import { priceCheckNote } from "#/features/stats/format-checked-at";
 import { useScrollEdges } from "#/hooks/use-scroll-edges";
 import { formatCount } from "#/i18n/format";
@@ -28,22 +24,18 @@ type DealsSectionProps = {
 
 export function DealsSection({ deals, total, checkedAt }: DealsSectionProps) {
 	const t = useTranslation();
-	const reveal = useSceneReveal();
+
 	const locale = useLocale();
 	const scroller = useRef<HTMLUListElement>(null);
-	const { atStart, atEnd } = useScrollEdges(scroller);
+	const { atStart, atEnd } = useScrollEdges(scroller, deals.length);
 
 	if (deals.length === 0) return null;
 
 	const scrollByPage = (direction: -1 | 1) => {
 		const el = scroller.current;
 		if (!el) return;
-		const reduceMotion = window.matchMedia(
-			"(prefers-reduced-motion: reduce)",
-		).matches;
 		el.scrollBy({
 			left: direction * el.clientWidth * 0.8,
-			behavior: reduceMotion ? "auto" : "smooth",
 		});
 	};
 
@@ -107,17 +99,15 @@ export function DealsSection({ deals, total, checkedAt }: DealsSectionProps) {
 			<ul
 				id="home-deals"
 				ref={scroller}
-				className="mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto pt-1 pb-8 md:mt-10 md:gap-5 scrollbar-none [&::-webkit-scrollbar]:hidden"
+				className="mt-8 flex snap-x snap-mandatory motion-safe:scroll-smooth gap-4 overflow-x-auto pt-1 pb-8 md:mt-10 md:gap-5 scrollbar-none [&::-webkit-scrollbar]:hidden"
 			>
 				{deals.map((deal, i) => (
-					<motion.li
-						{...reveal}
-						transition={{ ...reveal.transition, delay: Math.min(i, 3) * 0.06 }}
+					<li
 						key={deal.id}
 						className="w-[70%] shrink-0 snap-start sm:w-[42%] md:w-[calc((100%-2.5rem)/3)] lg:w-[calc((100%-3.75rem)/4)]"
 					>
-						<DealCard deal={deal} loading={dealImageLoading(i)} />
-					</motion.li>
+						<DealCard deal={deal} loading={catalogImageLoading(i)} />
+					</li>
 				))}
 			</ul>
 		</Section>

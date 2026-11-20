@@ -1,6 +1,75 @@
 /** English source strings are also the English catalog. Keep placeholders unchanged. */
 export const storefrontKa = {
-	"Checking payment instructions…": "გადახდის ინსტრუქციების შემოწმება…",
+	"US outlets. Lower prices.": "ამერიკული აუთლეტები. დაბალი ფასები.",
+	"Browse shoes, clothing and accessories from US stores. Choose a size and colour to see the price for that exact item.":
+		"დაათვალიერეთ ფეხსაცმელი, ტანსაცმელი და აქსესუარები. ზუსტი ფასის სანახავად ნივთის გვერდზე აირჩიეთ ზომა და ფერი.",
+	"Choose your size and colour": "აირჩიეთ ზომა და ფერი",
+	"A discount can vary between sizes of the same shoe. Open a deal to see the exact option behind the price.":
+		"ერთსა და იმავე მოდელზე ფასდაკლება შეიძლება ზომის მიხედვით იცვლებოდეს. ნივთის გვერდზე ნახავთ, რომელ ზომაზე ვრცელდება მითითებული ფასი.",
+	"Check delivery by store": "რა ღირს მიწოდება?",
+	"Your cart groups items by store. Each group has its own shipping charge and may qualify for free shipping.":
+		"კალათაში თითოეული მაღაზიის ნივთებს ცალკე ნახავთ. თუ მაღაზიას უფასო მიწოდება აქვს გარკვეული თანხიდან, ამ თანხაში მხოლოდ მისგან შერჩეული ნივთების ფასი შედის.",
+	"Confirm the total": "გადაამოწმეთ საბოლოო თანხა",
+	"Sign in, choose a US delivery address and review shipping and service fees. Checkout gives you a payment reference for your bank transfer.":
+		"შედით ანგარიშში, აირჩიეთ მიწოდების მისამართი აშშ-ში და გადაამოწმეთ მიწოდებისა და მომსახურების საფასური. შეკვეთის გაფორმებისას მიიღებთ საბანკო გადარიცხვის დანიშნულებაში მისათითებელ კოდს.",
+	"How we choose deals": "როგორ ვარჩევთ შეთავაზებებს",
+	"Inside the selection": "როგორ ხვდება ნივთი ჩვენს კატალოგში",
+	"How is the discount calculated?": "როგორ ითვლება ფასდაკლება?",
+	"We compare a retailer’s current price with its crossed-out price for the same size and colour. The offer must meet the minimum discount set for that collection and be available to buy as a single item.":
+		"ერთი და იმავე ზომისა და ფერის ნივთის მიმდინარე ფასს მაღაზიის მიერ გადახაზულ ფასს ვადარებთ. ფასდაკლება უნდა აღწევდეს კოლექციისთვის დადგენილ მინიმუმს და ამ ფასად ერთი ნივთის ყიდვაც შესაძლებელი უნდა იყოს.",
+	"What if a store has no reviews?": "თუ მაღაზიას მიმოხილვები არ აქვს?",
+	"Gemini looks for shopper reviews of the same product across sites. We exclude deals when the overall feedback is negative. Mixed feedback or missing reviews can still qualify.":
+		"Gemini სხვადასხვა საიტზე ეძებს მყიდველების მიმოხილვებს იმავე ნივთზე. თუ შეფასებები ძირითადად უარყოფითია, შეთავაზებას არ ვაქვეყნებთ. თუ აზრები იყოფა ან მიმოხილვები ვერ მოიძებნა, ნივთი შეიძლება მაინც მოხვდეს კატალოგში.",
+	"Why can a deal disappear?": "რატომ შეიძლება გაქრეს შეთავაზება?",
+	"A size can sell out or its price can change. Offers expire between checks, and a later check can remove a deal that no longer qualifies.":
+		"ზოგჯერ თქვენი ზომა მომდევნო შემოწმებამდე იყიდება ან მაღაზია ფასს ცვლის. შეთავაზება კატალოგიდან ქრება, როცა ვადა გაუვა ან შემოწმებისას აღმოჩნდება, რომ ფასდაკლება ჩვენს პირობებს აღარ აკმაყოფილებს.",
+	"Before you order": "რა უნდა იცოდეთ შეკვეთამდე",
+	"Sizes and prices": "ზომა და ფასი",
+	"Choose a size and colour on the product page before adding the item to your cart. Different sizes of the same model can have different prices.":
+		"კალათაში დამატებამდე ნივთის გვერდზე შეარჩიეთ ზომა და ფერი. ერთსა და იმავე მოდელს ზომის მიხედვით შეიძლება სხვადასხვა ფასი ჰქონდეს.",
+	"Delivery in the US": "მიწოდება აშშ-ში",
+	"We deliver to US addresses, including forwarding addresses. Your cart shows a shipping estimate for each store. If a store offers free shipping above a certain amount, only items from that store count towards it.":
+		"შეკვეთას აშშ-ში მითითებულ მისამართზე ვაგზავნით. თუ გადამზიდით სარგებლობთ, მიუთითეთ მისი ამერიკული მისამართი და თქვენი ოთახის ნომერი. კალათაში ნახავთ, დაახლოებით რა დაგიჯდებათ მიწოდება თითოეული მაღაზიიდან. თუ მაღაზიას გარკვეული თანხიდან უფასო მიწოდება აქვს, ეს თანხა მხოლოდ იმავე მაღაზიის ნივთებით უნდა შეგროვდეს.",
+	"Paying for your order": "როგორ გადაიხადოთ",
+	"Sign in and select your delivery address to see the final total, including shipping and the service fee. Transfer the amount in dollars or lari, enter the payment reference and upload a screenshot of the transfer.":
+		"შედით ანგარიშში და აირჩიეთ მისამართი. გადახდამდე ნახავთ სრულ თანხას, რომელშიც მიწოდებისა და მომსახურების საფასურიც შედის. თანხა შეგიძლიათ დოლარში ან ლარში გადარიცხოთ. გადარიცხვის დანიშნულებაში ჩაწერეთ შეკვეთის გვერდზე მითითებული კოდი, შემდეგ კი ატვირთეთ ქვითრის სურათი.",
+	"Catalog feeds": "კატალოგის წყაროები",
+	"Choose which retailer pages the worker checks and which offers qualify.":
+		"აირჩიეთ მაღაზიების გვერდები და მიუთითეთ, რა პირობებს უნდა აკმაყოფილებდეს შეთავაზება.",
+	"Add feed": "წყაროს დამატება",
+	"Save feed": "წყაროს შენახვა",
+	"Edit feed": "წყაროს შეცვლა",
+	"Delete feed?": "წაიშალოს წყარო?",
+	"Future runs will skip this feed for {{warehouse}}.":
+		"შემდეგი შემოწმებისას {{warehouse}}-ის ეს წყარო გამოტოვებული იქნება.",
+	Active: "აქტიური",
+	Paused: "შეჩერებული",
+	"Feed saved.": "წყარო შენახულია.",
+	"Feed deleted.": "წყარო წაიშალა.",
+	"Add a feed to start collecting offers.":
+		"შეთავაზებების შესაგროვებლად დაამატეთ წყარო.",
+	"Warehouse domain": "საწყობის დომენი",
+	Department: "განყოფილება",
+	Category: "კატეგორია",
+	"Starting URLs (one per line)": "საწყისი ბმულები (თითო ხაზზე ერთი)",
+	"Product link selector (optional)":
+		"პროდუქტის ბმულის CSS სელექტორი (არასავალდებულო)",
+	"Page limit per run": "გვერდების ლიმიტი თითო შემოწმებაზე",
+	"Minimum discount (%)": "მინიმალური ფასდაკლება (%)",
+	"Offer lifetime (minutes)": "შეთავაზების მოქმედების ვადა (წუთები)",
+	"Include in worker runs": "შემოწმებისას ამ წყაროს გამოყენება",
+	"Saving…": "ინახება…",
+	"Use HTTPS URLs on the warehouse domain.":
+		"გამოიყენეთ HTTPS ბმულები საწყობის დომენზე.",
+	"The page limit must cover all starting URLs.":
+		"გვერდების ლიმიტი საწყისი ბმულების რაოდენობაზე ნაკლები ვერ იქნება.",
+	"Check the domain, starting URLs and limits.":
+		"გადაამოწმეთ დომენი, საწყისი ბმულები და ლიმიტები.",
+	"Catalog operator access is required.":
+		"საჭიროა კატალოგის ოპერატორის უფლება.",
+	"This feed changed. Reload the latest version before editing it again.":
+		"წყარო შეიცვალა. ხელახლა გახსენით უახლესი ვერსია და შემდეგ შეიტანეთ ცვლილებები.",
+	"Checking payment instructions…": "გადახდის დეტალები მოწმდება…",
 	"{{count}} cart items are unavailable. Remove them to continue.":
 		"კალათის {{count}} პროდუქტი მიუწვდომელია. გასაგრძელებლად წაშალეთ ისინი.",
 	"Remove unavailable items": "მიუწვდომელი პროდუქტების წაშლა",
@@ -23,7 +92,7 @@ export const storefrontKa = {
 	"Find your fit": "იპოვეთ სასურველი ნივთი",
 	"Start with a department, then narrow your search by brand, size, colour or budget.":
 		"აირჩიეთ კატეგორია, შემდეგ კი გაფილტრეთ ნივთები ბრენდის, ზომის, ფერის ან ბიუჯეტის მიხედვით.",
-	"Compare the details": "შეადარეთ დეტალები",
+	"Compare the details": "გადაამოწმეთ ფასი და ზომა",
 	"Check the listed price, available sizes and latest price-check time before adding an item to your cart.":
 		"კალათაში დამატებამდე ნახეთ ნივთის ფასი, ხელმისაწვდომი ზომები და ფასის ბოლო შემოწმების დრო.",
 	"Review your order": "გადაამოწმეთ შეკვეთა",
@@ -31,7 +100,7 @@ export const storefrontKa = {
 		"შეკვეთის დადასტურებამდე გადაამოწმეთ მიწოდებისა და მომსახურების საფასური და საბოლოო თანხა.",
 	"Store {{code}}": "მაღაზია {{code}}",
 	"Shop more from this store": "ნახეთ ამავე მაღაზიის სხვა ნივთები",
-	"Shop by store": "შეარჩიეთ მაღაზიის მიხედვით",
+	"Shop by store": "მაღაზიების ნახვა",
 	"Items from this store share one shipping charge and free-shipping threshold.":
 		"ამ მაღაზიის ნივთები ერთ გზავნილში ერთიანდება. მიწოდების საფასური და უფასო მიწოდების პირობა მათ ჯამურ ღირებულებაზე ითვლება.",
 	"No products are currently available from this store.":
@@ -62,25 +131,24 @@ export const storefrontKa = {
 	Discover: "გაგვიცანით",
 	"See how we choose": "ნახეთ, როგორ ვარჩევთ",
 	"Our process": "როგორ ვმუშაობთ",
-	"From the source to your shortlist.": "როგორ ვარჩევთ შეთავაზებებს თქვენთვის.",
+	"From the source to your shortlist.": "როგორ ხვდება ნივთი ჩვენს კატალოგში?",
 	"You make the final call": "საბოლოო არჩევანი თქვენზეა",
 
 	"About us": "ჩვენ შესახებ",
 	"Good finds. Less searching.": "კარგი შეთავაზებები. ნაკლები ძებნა.",
 	"We select US stores, filter their listings, and bring worthwhile finds together so you can spend less time searching.":
-		"ვარჩევთ მაღაზიებს აშშ-ში, ვფილტრავთ მათ შეთავაზებებს და თქვენთვის საინტერესო ნივთებს ერთ სივრცეში ვუყრით თავს, რომ ძებნაში ნაკლები დრო დახარჯოთ.",
+		"ამერიკულ მაღაზიებში ფასდაკლებულ ნივთებს ვარჩევთ და ერთ კატალოგში ვაგროვებთ. ასე სასურველი ზომისა და ფასის საპოვნელად რამდენიმე საიტის ცალ-ცალკე დათვალიერება აღარ გიწევთ.",
 	"Select stores": "მაღაზიების შერჩევა",
-	"Good finds start at the source.":
-		"ჯერ მაღაზიას ვარჩევთ, შემდეგ კი შეთავაზებებს.",
+	"Good finds start at the source.": "რომელ მაღაზიებს ვარჩევთ?",
 	"We look for reputable US warehouses and discount stores, choosing sources with original products and quality in mind.":
-		"აშშ-ში ვეძებთ კარგი რეპუტაციის მქონე საწყობებსა და მაღაზიებს, სადაც ნივთები ფასდაკლებით იყიდება. შერჩევისას ყურადღებას პროდუქციის ორიგინალობასა და ხარისხს ვაქცევთ.",
+		"ვარჩევთ სანდო ამერიკულ აუთლეტებსა და საბითუმო მაღაზიებს. შერჩევისას ყურადღებას ვაქცევთ იმას, ყიდიან თუ არა ორიგინალ ნივთებს და როგორია მათი ხარისხი.",
 	"Selected US stores": "შერჩეული მაღაზიები აშშ-ში",
-	"Filter & compare": "გაფილტვრა და შედარება",
+	"Filter & compare": "ფასების შედარება",
 	"A little more care. A lot less noise.": "ჩვენ ვარჩევთ, თქვენ დროს ზოგავთ.",
 	"We organise product listings and compare available prices, discounts and product details to help surface worthwhile deals.":
 		"ვაწესრიგებთ პროდუქციის შესახებ ინფორმაციას, ვადარებთ ფასებს, ფასდაკლებებსა და ნივთების მახასიათებლებს, რომ თქვენთვის საინტერესო შეთავაზებები შევარჩიოთ.",
 	"A considered selection": "შერჩეული შეთავაზებები",
-	"Discover your find": "იპოვეთ სასურველი ნივთი",
+	"Discover your find": "ფასი და მარაგი",
 	"Your next find, in one place.": "სასურველი ნივთის პოვნა უფრო მარტივია.",
 	"Explore shoes, clothing and accessories by brand, size, colour and budget. We bring the selection together; you decide what works for you.":
 		"შეარჩიეთ ფეხსაცმელი, ტანსაცმელი და აქსესუარები ბრენდის, ზომის, ფერისა და თქვენთვის მისაღები ფასის მიხედვით. ჩვენ შეთავაზებებს ერთ სივრცეში ვუყრით თავს, თქვენ კი სასურველ ნივთს ირჩევთ.",
@@ -94,7 +162,7 @@ export const storefrontKa = {
 	"One step closer to your next find": "კიდევ ერთი ნაბიჯი სასურველ ნივთამდე",
 	"Copy {{label}}": "კოპირება: {{label}}",
 	"Add a U.S. address to get started. You can use your forwarding address.":
-		"დასაწყებად დაამატეთ აშშ-ის მისამართი. შეგიძლიათ გადამზიდის მისამართიც გამოიყენოთ.",
+		"მიუთითეთ მისამართი აშშ-ში, სადაც შეკვეთა უნდა მივიტანოთ. შეგიძლიათ თქვენი გადამზიდის მისამართიც გამოიყენოთ.",
 	"We only ship to U.S. addresses.":
 		"მიწოდება მხოლოდ აშშ-ის მისამართებზეა შესაძლებელი.",
 	"Replace payment screenshot": "გადახდის სურათის შეცვლა",
@@ -205,12 +273,12 @@ export const storefrontKa = {
 		"აღმოაჩინეთ ფეხსაცმელი, ტანსაცმელი და აქსესუარები საბითუმო მაღაზიებიდან, შეადარეთ ფასები და შეარჩიეთ ნივთები მთელი ოჯახისთვის.",
 	"Discover shoes, clothing and accessories for the whole family. Compare the deals, find your fit, and spend less time searching.":
 		"შეარჩიეთ ფეხსაცმელი, ტანსაცმელი და აქსესუარები მთელი ოჯახისთვის. შეადარეთ შეთავაზებები და მარტივად იპოვეთ სასურველი ნივთი.",
-	"Deals live now": "აქტიური შეთავაზებები",
-	"Warehouses checked": "შემოწმებული საწყობები",
+	"Deals live now": "მოქმედი შეთავაზება",
+	"Warehouses checked": "შემოწმებული მაღაზია",
 	"Last price check": "ფასების ბოლო შემოწმება",
 	"Not yet": "ჯერ არ შემოწმებულა",
 	"Up to {{discount}}% off today": "დღეს {{discount}}%-მდე ფასდაკლება",
-	"See today's biggest drops": "ნახეთ დღევანდელი ფასდაკლებები",
+	"See today's biggest drops": "ნახეთ ყველაზე დიდი ფასდაკლებები",
 	"Your next find starts here": "აღმოაჩინეთ ის, რასაც ეძებთ",
 	"Find your next favourite.": "შეარჩიეთ თქვენთვის სასურველი ნივთი.",
 	"{{brand}} brings the deals together. Find a style, a size, and a price that work for you.":
@@ -243,7 +311,7 @@ export const storefrontKa = {
 	"Shop by department": "ვისთვის არჩევთ?",
 	"Shoes, clothing and accessories for the whole family.":
 		"ფეხსაცმელი, ტანსაცმელი და აქსესუარები მთელი ოჯახისთვის.",
-	"Today's biggest drops": "დღევანდელი საუკეთესო ფასდაკლებები",
+	"Today's biggest drops": "დღის ყველაზე დიდი ფასდაკლებები",
 	"Sorted by discount.": "დალაგებულია ფასდაკლების მიხედვით.",
 	"Previous deals": "წინა შეთავაზებები",
 	"Next deals": "შემდეგი შეთავაზებები",

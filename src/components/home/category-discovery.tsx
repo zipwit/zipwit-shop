@@ -13,19 +13,13 @@ export function CategoryDiscovery() {
 				{t("Shop by category")}
 			</p>
 			<ul className="grid gap-3 md:grid-cols-3 md:gap-5">
-				{categorySlugs.map((category, index) => (
+				{categorySlugs.map((category) => (
 					<li key={category}>
 						<Link
 							to="/categories/$category"
 							params={{ category }}
 							className="discovery-link group"
 						>
-							<span
-								aria-hidden="true"
-								className="type-num text-sm text-brand/55"
-							>
-								0{index + 1}
-							</span>
 							<div className="min-w-0 flex-1">
 								<h3 className="type-title text-xl">
 									{t(categories[category].label)}

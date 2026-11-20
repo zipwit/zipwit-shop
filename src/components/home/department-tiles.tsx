@@ -1,10 +1,8 @@
 import { ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
-import { motion } from "motion/react";
 import { Section } from "#/components/layout/container";
 import { SectionHeader } from "#/components/layout/section-header";
-import { useSceneReveal } from "#/components/motion/use-scene-reveal";
 import {
 	categories,
 	categorySlugs,
@@ -24,7 +22,7 @@ const artwork = {
 /** Big typographic tiles: the whole tile opens the department, the chips jump to a category. */
 export function DepartmentTiles() {
 	const t = useTranslation();
-	const reveal = useSceneReveal();
+
 	return (
 		<Section id="departments" className="scroll-mt-28" spacing="compact">
 			<CategoryDiscovery />
@@ -34,10 +32,8 @@ export function DepartmentTiles() {
 			/>
 
 			<ul className="mt-8 grid gap-5 md:mt-10 md:grid-cols-3 md:gap-6">
-				{departmentSlugs.map((slug, index) => (
-					<motion.li
-						{...reveal}
-						transition={{ ...reveal.transition, delay: index * 0.1 }}
+				{departmentSlugs.map((slug) => (
+					<li
 						key={slug}
 						className="department-tile group relative flex min-w-0 flex-col overflow-hidden rounded-2xl p-6 lg:p-8"
 					>
@@ -84,7 +80,7 @@ export function DepartmentTiles() {
 								className="shrink-0 text-brand transition-transform duration-300 motion-safe:group-hover:translate-x-1 motion-safe:group-hover:-translate-y-1"
 							/>
 						</div>
-					</motion.li>
+					</li>
 				))}
 			</ul>
 		</Section>

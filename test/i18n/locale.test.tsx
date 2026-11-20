@@ -62,12 +62,14 @@ describe("Georgian locale", () => {
 		);
 		expect(DEFAULT_LOCALE).toBe("ka");
 		const georgian = renderToStaticMarkup(hero);
-		expect(georgian).toContain("პრემიუმ ბრენდები.");
+		expect(georgian).toContain("ამერიკული აუთლეტები.");
+		expect(georgian).toContain("დაბალი ფასები.");
 		expect(georgian).toContain("დღეს 30%-მდე ფასდაკლება");
 		const english = renderToStaticMarkup(
 			<LocaleProvider value="en">{hero}</LocaleProvider>,
 		);
-		expect(english).toContain("Premium brands.");
+		expect(english).toContain("US outlets.");
+		expect(english).toContain("Lower prices.");
 		expect(english).toContain("Up to 30% off today");
 	});
 

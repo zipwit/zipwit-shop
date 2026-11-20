@@ -25,13 +25,15 @@ export function CatalogCardDetails({ product }: { product: ProductListItem }) {
 					to="/product/$slug"
 					params={{ slug }}
 					search={product.skuId ? { sku: product.skuId } : undefined}
-					className="after:absolute after:inset-0 after:rounded-[1.75rem] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-brand"
+					className="after:absolute after:inset-0 after:rounded-[1.125rem] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-brand"
 				>
 					{name}
 				</Link>
 			</h3>
 			<p className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mt-auto pt-2">
-				<span className="text-xs text-muted-foreground">{t("From")}</span>
+				{!product.skuId && (
+					<span className="text-xs text-muted-foreground">{t("From")}</span>
+				)}
 				<span
 					className={cn(
 						"type-num text-lg font-bold sm:text-xl",

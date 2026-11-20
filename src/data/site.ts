@@ -8,11 +8,11 @@ export const site = {
 	/** IANA zone the store operates in; times shown to shoppers use it. */
 	timezone: "Asia/Tbilisi",
 
-	tagline: "Premium brands. Best prices.",
+	tagline: "US outlets. Lower prices.",
 	description:
 		"Daily deals on shoes, clothing and accessories for men, women and kids, checked across wholesale stores.",
 	pitch:
 		"Discover premium shoes, clothing and accessories from wholesale stores. Compare prices and find the best deals for your family.",
 	heroPitch:
-		"Discover premium shoes, clothing and accessories for the whole family. Browse curated selections, compare the best deals, and find your perfect fit.",
+		"Browse shoes, clothing and accessories from US stores. Choose a size and colour to see the price for that exact item.",
 };

@@ -12,7 +12,7 @@ export function SkewTag({
 	return (
 		<span
 			className={cn(
-				"inline-flex rounded-full bg-brand-accent/90 px-3 py-1.5 text-xs font-bold text-[#1e293b] shadow-brand",
+				"discount-ticket inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold tabular-nums",
 				className,
 			)}
 		>
