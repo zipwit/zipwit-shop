@@ -1,0 +1,14 @@
+[
+	{
+		"warehouse": "outlet.example",
+		"department": "women",
+		"category": "shoes",
+		"urls": ["https://outlet.example/clearance/womens-shoes"],
+		"product_link_selector": "a.product-card",
+		"max_pages": 50,
+		"rules": {
+			"min_discount_percent": 30,
+			"max_age_minutes": 60
+		}
+	}
+]

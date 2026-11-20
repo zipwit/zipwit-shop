@@ -1,4 +1,5 @@
 {
+	"ty.interpreter": "${workspaceFolder}/deal-scout/.venv",
 	"files.watcherExclude": {
 		"**/routeTree.gen.ts": true
 	},

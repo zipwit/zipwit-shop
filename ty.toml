@@ -1,0 +1,6 @@
+[environment]
+python = "./deal-scout/.venv"
+root = ["./deal-scout/src", "./deal-scout/tests"]
+
+[src]
+include = ["deal-scout/src", "deal-scout/tests"]

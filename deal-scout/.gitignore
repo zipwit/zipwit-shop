@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+storage/
+products.json
+feeds.local.json
+.ruff_cache/
