@@ -22,6 +22,7 @@ function connection() {
 		connect: vi.fn().mockResolvedValue(undefined),
 		isOpen: false,
 		destroy: vi.fn(),
+		close: vi.fn(),
 	});
 }
 
@@ -34,7 +35,10 @@ beforeEach(() => {
 	settings.REDIS_PASSWORD = undefined;
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(async () => {
+	await (await import("#/server/redis.server")).closeRedis();
+	vi.restoreAllMocks();
+});
 
 describe("getRedis", () => {
 	it("uses Cluster seed nodes and primary reads, with credentials inherited by every node", async () => {
@@ -99,6 +103,19 @@ describe("getRedis", () => {
 		const clients = await Promise.all([getRedis(), getRedis()]);
 		expect(clients).toEqual([redis, redis]);
 		expect(redis.connect).toHaveBeenCalledTimes(1);
+	});
+
+	it("closes the SSR connection from a separate lifecycle module instance", async () => {
+		const redis = connection();
+		redis.isOpen = true;
+		createClient.mockReturnValue(redis);
+		await (await import("#/server/redis.server")).getRedis();
+		vi.resetModules();
+		const { closeRedis } = await import("#/server/redis.server");
+		await closeRedis();
+		await closeRedis();
+		expect(redis.close).toHaveBeenCalledTimes(1);
+		expect(createClient).toHaveBeenCalledTimes(1);
 	});
 
 	it("allows another attempt after initialization fails", async () => {

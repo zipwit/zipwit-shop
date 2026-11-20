@@ -11,9 +11,7 @@ vi.mock("#/server/env.server", () => ({
 	env: { BETTER_AUTH_SECRET: "test-secret" },
 }));
 const { findProductBySlug } = await import("#/features/catalog/product.server");
-const { getWarehouseShipping } = await import(
-	"#/features/shipping/warehouse-shipping.server"
-);
+const { publicStoreId } = await import("#/features/stores/store.server");
 
 beforeEach(() => vi.resetAllMocks());
 
@@ -29,16 +27,16 @@ it("returns the same anonymous ID as shipping without leaking source fields", as
 		currency: "USD",
 		skus: [],
 		warehouse: "private-supplier.example",
-		url: "https://private-supplier.example/item/1",
+		sourceUrl: "https://private-supplier.example/item/1",
+		lastSeenAt: "2026-01-02T03:04:05.000Z",
 		internalField: "private",
 	});
 	const product = await findProductBySlug("shoe");
-	expect(product?.storeId).toBe(
-		getWarehouseShipping("private-supplier.example").groupId,
-	);
+	expect(product?.storeId).toBe(publicStoreId("private-supplier.example"));
 	expect(product?.storeId).toMatch(/^[a-f0-9]{64}$/);
 	expect(product).not.toHaveProperty("warehouse");
-	expect(product).not.toHaveProperty("url");
+	expect(product).not.toHaveProperty("sourceUrl");
+	expect(product?.checkedAt).toBe("2026-01-02T03:04:05.000Z");
 	expect(product).not.toHaveProperty("internalField");
 	expect(JSON.stringify(product)).not.toContain("private-supplier");
 });

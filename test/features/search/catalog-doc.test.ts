@@ -43,14 +43,22 @@ describe("buildCatalogDocs", () => {
 		const [doc] = buildCatalogDocs([
 			product({
 				skus: [
-					sku({ size: "40", price: 5000 }),
-					sku({ size: "41", price: 8000, originalPrice: 16000, discount: 50 }),
+					sku({ id: "cheapest", size: "40", price: 5000 }),
+					sku({
+						id: "deepest",
+						size: "41",
+						price: 8000,
+						originalPrice: 16000,
+						discount: 50,
+					}),
 				],
 			}),
 		]);
 		expect(doc?.price).toBe(5000);
+		expect(doc?.skuId).toBe("cheapest");
 		expect(doc?.discount).toBe(50);
 		expect(doc?.deal).toEqual({
+			skuId: "deepest",
 			price: 8000,
 			originalPrice: 16000,
 			imageUrl: null,

@@ -22,6 +22,7 @@ export const findProductBySlug = async (slug: string) => {
 		department: found.department,
 		category: found.category,
 		currency: found.currency,
+		checkedAt: found.sourceUrl ? found.lastSeenAt : null,
 		storeId: publicStoreId(found.warehouse),
 		purchasable: !found.browseOnly,
 		skus: sortSkus(available, found.category),

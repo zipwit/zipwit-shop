@@ -10,7 +10,7 @@ vi.mock("#/server/env.server", () => ({
 }));
 vi.mock("#/features/search/redis-ft.server", () => ({ ft }));
 vi.mock("#/db", () => {
-	throw new Error("Live catalog initialization must not import SQLite");
+	throw new Error("Live catalog initialization must not import PostgreSQL");
 });
 vi.mock("#/server/redis.server", () => ({
 	getRedis: async () => redis,

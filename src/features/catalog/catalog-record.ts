@@ -16,6 +16,8 @@ export const catalogRecordSchema = z.object({
 	category: categorySchema,
 	currency: z.string(),
 	warehouse: z.string(),
+	/** Supplier page used by operations for the pre-payment stock and price check. */
+	sourceUrl: z.httpUrl().optional(),
 	browseOnly: z.boolean(),
 	lastSeenAt: z.iso.datetime(),
 	updatedAt: z.iso.datetime(),

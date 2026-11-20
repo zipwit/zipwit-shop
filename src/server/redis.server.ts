@@ -48,11 +48,15 @@ const createRedisClient = () => {
 			});
 };
 
-let client: Promise<ReturnType<typeof createRedisClient>> | undefined;
+// Nitro's lifecycle plugin and the TanStack SSR handler have separate module
+// graphs in production. Both must see the same process-owned connection.
+const runtime = globalThis as typeof globalThis & {
+	zipwitRedis?: Promise<ReturnType<typeof createRedisClient>>;
+};
 
 /** Opens a shared lazy connection and clears it after a failed connection or terminal disconnect. */
 export const getRedis = () => {
-	if (client) return client;
+	if (runtime.zipwitRedis) return runtime.zipwitRedis;
 
 	const pending: Promise<ReturnType<typeof createRedisClient>> = (async () => {
 		const connection = createRedisClient();
@@ -60,7 +64,7 @@ export const getRedis = () => {
 			console.warn("Redis client error:", error),
 		);
 		const reset = () => {
-			if (client === pending) client = undefined;
+			if (runtime.zipwitRedis === pending) runtime.zipwitRedis = undefined;
 		};
 		connection.on("end", reset);
 		connection.on("terminated", reset);
@@ -72,12 +76,20 @@ export const getRedis = () => {
 			throw error;
 		}
 	})().catch((error: unknown) => {
-		if (client === pending) client = undefined;
+		if (runtime.zipwitRedis === pending) runtime.zipwitRedis = undefined;
 		throw error;
 	});
-	client = pending;
+	runtime.zipwitRedis = pending;
 	return pending;
 };
+
+/** Release the process connection after the HTTP server has drained requests. */
+export async function closeRedis() {
+	const pending = runtime.zipwitRedis;
+	runtime.zipwitRedis = undefined;
+	const connection = await pending?.catch(() => undefined);
+	if (connection?.isOpen) await connection.close();
+}
 
 /** Raw commands have different signatures on standalone and Cluster clients. */
 export async function redisCommand(args: string[]) {

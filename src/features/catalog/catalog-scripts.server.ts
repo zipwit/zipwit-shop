@@ -11,8 +11,9 @@ redis.call('SET', KEYS[1], ARGV[1])
 return 1
 `;
 export const releasePointer = `
-if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end
-return 0
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+if ARGV[2] then return redis.call('SET', KEYS[1], ARGV[2]) end
+return redis.call('DEL', KEYS[1])
 `;
 
 export const writeProduct = `
@@ -28,7 +29,7 @@ else
  if ARGV[4] ~= '' then redis.call('EXPIREAT', KEYS[2], ARGV[4]) else redis.call('PERSIST', KEYS[2]) end
 end
 redis.call('SET', KEYS[3], ARGV[1])
-return 1
+return previous or 1
 `;
 export const deleteProduct = `
 local current = redis.call('JSON.GET', KEYS[1])
@@ -36,4 +37,15 @@ if not current or cjson.decode(current).updatedAt ~= ARGV[1] then return 0 end
 redis.call('DEL', KEYS[1], KEYS[2])
 redis.call('SET', KEYS[3], ARGV[2])
 return 1
+`;
+
+/** Retain the observation time so a delayed crawl cannot restore a withdrawn deal. */
+export const withdrawObservedProduct = `
+local revision = redis.call('GET', KEYS[3])
+if revision and revision > ARGV[1] then return 0 end
+local previous = redis.call('JSON.GET', KEYS[1])
+if previous and cjson.decode(previous).updatedAt >= ARGV[1] then return 0 end
+redis.call('DEL', KEYS[1], KEYS[2])
+redis.call('SET', KEYS[3], ARGV[1])
+return previous or 1
 `;

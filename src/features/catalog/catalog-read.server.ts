@@ -53,6 +53,8 @@ export async function findCatalogSkus(ids: string[]) {
 				warehouse: product.warehouse,
 				image: sku.imageUrl,
 				price: sku.price,
+				sourceExpiresAt: sku.sourceExpiresAt,
+				sourceUrl: product.sourceUrl,
 			},
 		];
 	});

@@ -3,7 +3,8 @@
 	"entry": [
 		"src/routes/**/*.{ts,tsx}",
 		"test/**/*.test.{ts,tsx}",
-		"scripts/*.ts"
+		"scripts/*.ts",
+		"src/server/redis-lifecycle.ts"
 	],
 	"project": ["src/**/*.{ts,tsx,css}", "test/**/*.{ts,tsx}"]
 }

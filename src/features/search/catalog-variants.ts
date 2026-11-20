@@ -1,15 +1,19 @@
 import type { Category } from "#/data/catalog";
 import { compareSizes } from "#/data/sizes";
 import type { CatalogVariant } from "./catalog-doc";
-import type { CatalogFilters, CatalogScope } from "./catalog-filters";
+import {
+	type CatalogFilters,
+	type CatalogScope,
+	facetKey,
+} from "./catalog-filters";
 
 type VariantFacet = "colors" | "sizes" | "price";
 type FacetOption = { value: string; count: number };
 
 function matchFacetValues(values: string[]) {
-	const selected = new Set(values.map((value) => value.toLowerCase()));
+	const selected = new Set(values.map(facetKey));
 	return (value: string) =>
-		selected.size === 0 || selected.has(value.toLowerCase());
+		selected.size === 0 || selected.has(facetKey(value));
 }
 
 function matchVariant(scope: CatalogScope, filters: CatalogFilters) {
@@ -56,7 +60,7 @@ export function selectCatalogVariant(
 
 function countOptions(counts: Map<string, FacetOption>, values: string[]) {
 	const distinct = new Map(
-		values.filter(Boolean).map((value) => [value.toLowerCase(), value]),
+		values.filter(Boolean).map((value) => [facetKey(value), value]),
 	);
 	for (const [key, value] of distinct) {
 		const existing = counts.get(key);

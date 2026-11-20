@@ -17,7 +17,7 @@ import { findProductBySlug } from "#/features/catalog/product.server";
 import { DEFAULT_FILTERS } from "#/features/search/catalog-filters";
 import { syncCatalogIndex } from "#/features/search/catalog-index.server";
 import { searchCatalog } from "#/features/search/catalog-search.server";
-import { getStats } from "#/features/stats/stats.server";
+import { refreshStats } from "#/features/stats/stats.server";
 import {
 	deleteRedisKeys,
 	getRedis,
@@ -71,13 +71,17 @@ const rows: CatalogRecord[] = ["a", "b", "c"].map((name, index) => ({
 try {
 	for (const row of rows) assert.equal(await putCatalogProduct(row), true);
 	const filters = { ...DEFAULT_FILTERS, brands: [run] };
-	assert.equal(
-		(await searchCatalog({ mode: "listing" }, filters, 1, 20)).total,
-		3,
-	);
 	const first = rows[0];
 	const variant = first?.skus[0];
 	assert.ok(first && variant);
+	for (const mode of ["listing", "deals"] as const) {
+		const page = await searchCatalog({ mode }, filters, 1, 20);
+		assert.equal(page.total, 3);
+		assert.equal(
+			page.items.find((item) => item.id === first.id)?.skuId,
+			variant.id,
+		);
+	}
 	const matched = await searchCatalog(
 		{ mode: "listing" },
 		{
@@ -97,7 +101,7 @@ try {
 	assert.ok(!JSON.stringify(detail).includes("cluster-0.example"));
 	const ids = rows.flatMap((row) => row.skus.map((sku) => sku.id));
 	assert.equal((await findCatalogSkus(ids)).length, 3);
-	const stats = await getStats();
+	const stats = await refreshStats();
 	assert.ok(stats.deals >= 3 && stats.warehouses >= 2);
 	console.log(
 		"✓ Direct Redis catalog writes, details, multi-SKU lookups, listings and live stats (Redis only)",
@@ -125,6 +129,18 @@ try {
 	console.log("✓ Atomic cart scripts across product shards");
 	const revision = (offset: number) =>
 		new Date(Date.parse(now) + offset).toISOString();
+	const otherSku = rows[1]?.skus[0];
+	assert.ok(otherSku);
+	await assert.rejects(
+		putCatalogProduct({
+			...first,
+			updatedAt: revision(1),
+			skus: [variant, otherSku],
+		}),
+		/already belongs to another product/,
+	);
+	assert.equal((await getCatalogProduct(first.slug))?.id, first.id);
+	assert.equal((await findCatalogSkus([variant.id, otherSku.id])).length, 2);
 	const updated = {
 		...first,
 		updatedAt: revision(1),

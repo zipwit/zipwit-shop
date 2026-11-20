@@ -65,7 +65,11 @@ describe("catalog prices", () => {
 				1,
 				48,
 			);
-			expect(result.items[0]?.price).toBe(price);
+			const skuId =
+				mode === "listing"
+					? "00000000-0000-4000-8000-000000000001"
+					: "00000000-0000-4000-8000-000000000002";
+			expect(result.items[0]).toMatchObject({ price, skuId });
 			expect(ft.search).toHaveBeenLastCalledWith(
 				"test",
 				expect.any(String),
@@ -74,6 +78,31 @@ describe("catalog prices", () => {
 
 			const facets = await catalogFacets(scope, DEFAULT_FILTERS);
 			expect(facets.price).toEqual({ min: price, max: 8000 });
+		},
+	);
+
+	it.each([true, false])(
+		"reads older deal projections with variants present = %s",
+		async (hasVariants) => {
+			ft.search.mockResolvedValue({
+				total: 1,
+				docs: docs.map(({ deal, variants, ...summary }) => ({
+					...summary,
+					skuId: undefined,
+					deal: { ...deal, skuId: undefined },
+					variants: hasVariants ? variants : undefined,
+				})),
+			});
+			const result = await searchCatalog(
+				{ mode: "deals" },
+				DEFAULT_FILTERS,
+				1,
+				48,
+			);
+			expect(result.items[0]).toMatchObject({ price: 8000, discount: 50 });
+			expect(result.items[0]?.skuId).toBe(
+				hasVariants ? "00000000-0000-4000-8000-000000000002" : undefined,
+			);
 		},
 	);
 });

@@ -131,10 +131,17 @@ export async function searchCatalog(
 			offset,
 			pageSize,
 		);
+		const selectVariant = selectCatalogVariant(scope, filters);
 		return {
-			items: docs.map((doc) =>
-				toItem(doc, (scope.mode === "deals" && doc.deal) || doc, doc.discount),
-			),
+			items: docs.map((doc) => {
+				const summary = (scope.mode === "deals" ? doc.deal : null) ?? doc;
+				// During rollout, recover the SKU from older variant projections.
+				const offer =
+					!summary.skuId && doc.variants
+						? (selectVariant(doc.variants) ?? summary)
+						: summary;
+				return toItem(doc, offer, doc.discount);
+			}),
 			total,
 			hasMore: offset + docs.length < total,
 		};

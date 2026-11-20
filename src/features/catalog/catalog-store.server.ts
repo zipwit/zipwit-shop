@@ -6,11 +6,13 @@ import {
 	type CatalogRecord,
 	catalogInputSchema,
 	catalogKeys,
+	catalogRecordSchema,
 } from "./catalog-record";
 import {
 	claimPointer,
 	deleteProduct,
 	releasePointer,
+	withdrawObservedProduct,
 	writeProduct,
 } from "./catalog-scripts.server";
 
@@ -40,46 +42,63 @@ export async function putCatalogProduct(input: CatalogRecord) {
 	}
 	const pointers = pointerKeys(record);
 	const value = pointerFor(record);
+	const summary = catalogSummary(record);
 	const claimed: string[] = [];
+	// A rejected update may already have claimed the live product's slug and SKUs.
+	// Compare the claim before repairing it so a later revision keeps its pointers.
+	async function repairClaims() {
+		const current = await getCatalogProductById(record.id);
+		const liveKeys = new Set(current ? pointerKeys(current) : []);
+		for (const key of claimed) {
+			await redis.eval(releasePointer, {
+				keys: [key],
+				arguments:
+					current && liveKeys.has(key) ? [value, pointerFor(current)] : [value],
+			});
+		}
+		return current;
+	}
+	let written: unknown;
 	try {
 		for (const key of pointers) {
-			await redis.eval(claimPointer, { keys: [key], arguments: [value] });
 			claimed.push(key);
+			const result = await redis.eval(claimPointer, {
+				keys: [key],
+				arguments: [value],
+			});
+			if (result === 0) {
+				await repairClaims();
+				return false;
+			}
 		}
+		written = await redis.eval(writeProduct, {
+			keys: [
+				catalogKeys.record(record.id),
+				catalogKeys.search(record.id),
+				catalogKeys.revision(record.id),
+			],
+			arguments: [
+				record.updatedAt,
+				JSON.stringify(record),
+				summary ? JSON.stringify(summary) : "",
+				summary?.expiresAt ? String(summary.expiresAt) : "",
+			],
+		});
 	} catch (error) {
-		for (const key of claimed)
-			await redis.eval(releasePointer, { keys: [key], arguments: [value] });
+		await repairClaims();
 		throw error;
 	}
-	const summary = catalogSummary(record);
-	const written = await redis.eval(writeProduct, {
-		keys: [
-			catalogKeys.record(record.id),
-			catalogKeys.search(record.id),
-			catalogKeys.revision(record.id),
-		],
-		arguments: [
-			record.updatedAt,
-			JSON.stringify(record),
-			summary ? JSON.stringify(summary) : "",
-			summary?.expiresAt ? String(summary.expiresAt) : "",
-		],
-	});
-	if (written !== 1) {
-		const current = await getCatalogProductById(record.id);
-		if (current && JSON.stringify(current) === JSON.stringify(record))
-			return true;
-		for (const key of pointers) {
-			await redis.eval(releasePointer, { keys: [key], arguments: [value] });
-		}
-		return false;
+	if (written === 0) {
+		const current = await repairClaims();
+		return JSON.stringify(current) === JSON.stringify(record);
 	}
-	if (previous) {
-		const oldKeys = pointerKeys(previous);
+	if (typeof written === "string") {
+		const replaced = catalogRecordSchema.parse(JSON.parse(written));
+		const oldKeys = pointerKeys(replaced);
 		for (const key of oldKeys.filter((key) => !pointers.includes(key))) {
 			await redis.eval(releasePointer, {
 				keys: [key],
-				arguments: [pointerFor(previous)],
+				arguments: [pointerFor(replaced)],
 			});
 		}
 	}
@@ -112,4 +131,30 @@ export async function deleteCatalogProduct(id: string) {
 		});
 	}
 	return true;
+}
+
+/** Withdraw an ineligible supplier observation, including its search and lookup entries. */
+export async function withdrawCatalogObservation(
+	id: string,
+	checkedAt: string,
+) {
+	const redis = await getRedis();
+	const previous = await redis.eval(withdrawObservedProduct, {
+		keys: [
+			catalogKeys.record(id),
+			catalogKeys.search(id),
+			catalogKeys.revision(id),
+		],
+		arguments: [new Date(checkedAt).toISOString()],
+	});
+	if (typeof previous === "string") {
+		const record = catalogRecordSchema.parse(JSON.parse(previous));
+		for (const key of pointerKeys(record)) {
+			await redis.eval(releasePointer, {
+				keys: [key],
+				arguments: [pointerFor(record)],
+			});
+		}
+	}
+	return previous !== 0;
 }

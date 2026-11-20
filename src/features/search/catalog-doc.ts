@@ -41,6 +41,7 @@ export type CatalogDoc = {
 	/** Older writers may still publish the product-only summary during a rollout. */
 	variants?: CatalogVariant[];
 	/** Cheapest in-stock SKU: what listings show. */
+	skuId?: string;
 	price: number;
 	originalPrice: number | null;
 	imageUrl: string | null;
@@ -48,6 +49,7 @@ export type CatalogDoc = {
 	discount: number;
 	/** Deepest-discounted SKU: what the deals views show. */
 	deal: {
+		skuId?: string;
 		price: number;
 		originalPrice: number;
 		imageUrl: string | null;
@@ -129,6 +131,7 @@ export function buildCatalogDoc(
 	const deal =
 		deepest.discount > 0 && deepest.originalPrice !== null
 			? {
+					skuId: deepest.id,
 					price: deepest.price,
 					originalPrice: deepest.originalPrice,
 					imageUrl: deepest.imageUrl,
@@ -151,6 +154,7 @@ export function buildCatalogDoc(
 		colors: tagList(skus.map((sku) => sku.color)),
 		sizes: tagList(skus.map((sku) => sku.size)),
 		variants: skus.map(projectVariant),
+		skuId: cheapest.id,
 		price: cheapest.price,
 		originalPrice: cheapest.originalPrice,
 		imageUrl: cheapest.imageUrl,
