@@ -1,20 +1,18 @@
 import { defineRelationsPart } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { boolean, index, pgTable, text } from "drizzle-orm/pg-core";
 
 import { timestamp, timestamps } from "./columns";
 
-export const user = sqliteTable("user", {
+export const user = pgTable("user", {
 	id: text("id").notNull().primaryKey(),
 	name: text("name").notNull(),
 	email: text("email").notNull().unique(),
-	emailVerified: integer("email_verified", { mode: "boolean" })
-		.default(false)
-		.notNull(),
+	emailVerified: boolean("email_verified").default(false).notNull(),
 	image: text("image"),
 	...timestamps,
 });
 
-export const account = sqliteTable(
+export const account = pgTable(
 	"account",
 	{
 		id: text("id").notNull().primaryKey(),

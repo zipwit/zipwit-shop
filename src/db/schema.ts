@@ -1,13 +1,16 @@
 import { defineRelations, sql } from "drizzle-orm";
 import {
+	boolean,
 	check,
 	index,
 	integer,
-	sqliteTable,
+	jsonb,
+	pgTable,
 	text,
 	uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+} from "drizzle-orm/pg-core";
 import { account, user } from "#/db/auth-schema";
+import type { CatalogFeed } from "#/features/admin/catalog-feed";
 import type {
 	CheckoutAddress,
 	CheckoutQuote,
@@ -15,6 +18,46 @@ import type {
 import { dueAt, timestamp, timestamps } from "./columns";
 
 export * from "./auth-schema";
+
+export const catalogFeed = pgTable("catalog_feed", {
+	id: text("id").primaryKey(),
+	revision: integer("revision").notNull(),
+	enabled: boolean("enabled").notNull(),
+	config: jsonb("config").$type<CatalogFeed>().notNull(),
+});
+
+export const warehouseShippingRule = pgTable(
+	"warehouse_shipping_rule",
+	{
+		warehouse: text("warehouse").primaryKey(),
+		flatRateUsd: integer("flat_rate_usd").notNull(),
+		freeFromUsd: integer("free_from_usd"),
+	},
+	(t) => [
+		check("shipping_rate_range", sql`${t.flatRateUsd} between 0 and 100000`),
+		check(
+			"shipping_threshold_range",
+			sql`${t.freeFromUsd} between 0 and 2000000000`,
+		),
+	],
+);
+
+export const dealSource = pgTable(
+	"deal_source",
+	{
+		skuId: text("sku_id").primaryKey(),
+		productId: text("product_id").notNull(),
+		scopes: text("scopes").array().notNull(),
+		observedAt: timestamp("observed_at").notNull(),
+	},
+	(t) => [index("deal_source_product_idx").on(t.productId)],
+);
+
+export const reviewVerdict = pgTable("review_verdict", {
+	key: text("key").primaryKey(),
+	verdict: jsonb("verdict").notNull(),
+	checkedAt: timestamp("checked_at").defaultNow().notNull(),
+});
 
 const orderStatuses = [
 	"pending",
@@ -36,7 +79,7 @@ export type ShippingAddress = {
 };
 
 /** Orders retain the pricing and bank instructions shown at submission. */
-export const orders = sqliteTable(
+export const orders = pgTable(
 	"orders",
 	{
 		id: text("id")
@@ -51,12 +94,10 @@ export const orders = sqliteTable(
 			.default("pending"),
 		total: integer("total").notNull(),
 		currency: text("currency").notNull(),
-		checkoutQuote: text("checkout_quote", {
-			mode: "json",
-		}).$type<CheckoutQuote>(),
+		checkoutQuote: jsonb("checkout_quote").$type<CheckoutQuote>(),
 		customerName: text("customer_name"),
 		customerEmail: text("customer_email"),
-		shippingAddress: text("shipping_address", { mode: "json" })
+		shippingAddress: jsonb("shipping_address")
 			.$type<ShippingAddress>()
 			.notNull(),
 		...timestamps,
@@ -72,15 +113,17 @@ export const orders = sqliteTable(
 );
 
 /** Stores checkout drafts and payment evidence privately. The draft UUID becomes the order ID. */
-export const checkoutSession = sqliteTable(
+export const checkoutSession = pgTable(
 	"checkout_session",
 	{
 		id: text("id").notNull().primaryKey(),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "restrict" }),
-		quote: text("quote", { mode: "json" }).$type<CheckoutQuote>().notNull(),
-		shippingAddress: text("shipping_address", { mode: "json" })
+		quote: jsonb("quote").$type<CheckoutQuote>().notNull(),
+		/** Private retailer URLs by SKU for manual fulfillment after catalog withdrawal. */
+		supplierPages: jsonb("supplier_pages").$type<Record<string, string>>(),
+		shippingAddress: jsonb("shipping_address")
 			.$type<CheckoutAddress>()
 			.notNull(),
 		expiresAt: timestamp("expires_at").notNull(),
@@ -93,7 +136,7 @@ export const checkoutSession = sqliteTable(
 	(t) => [index("checkout_session_user_idx").on(t.userId)],
 );
 
-export const orderCartCleanup = sqliteTable(
+export const orderCartCleanup = pgTable(
 	"order_cart_cleanup",
 	{
 		orderId: text("order_id")
@@ -101,16 +144,14 @@ export const orderCartCleanup = sqliteTable(
 			.primaryKey()
 			.references(() => orders.id, { onDelete: "cascade" }),
 		cartId: text("cart_id").notNull(),
-		lines: text("lines", { mode: "json" })
-			.$type<{ id: string; quantity: number }[]>()
-			.notNull(),
+		lines: jsonb("lines").$type<{ id: string; quantity: number }[]>().notNull(),
 		nextAttemptAt: dueAt(),
 	},
 	(t) => [index("order_cart_cleanup_due_idx").on(t.nextAttemptAt)],
 );
 
 /** Transactional notification queue; a worker retries Telegram independently of checkout. */
-export const orderNotification = sqliteTable(
+export const orderNotification = pgTable(
 	"order_notification",
 	{
 		orderId: text("order_id")
@@ -118,9 +159,7 @@ export const orderNotification = sqliteTable(
 			.primaryKey()
 			.references(() => orders.id, { onDelete: "cascade" }),
 		nextMessage: integer("next_message").notNull().default(0),
-		proofSent: integer("proof_sent", { mode: "boolean" })
-			.notNull()
-			.default(false),
+		proofSent: boolean("proof_sent").notNull().default(false),
 		attempts: integer("attempts").notNull().default(0),
 		nextAttemptAt: dueAt(),
 		leaseUntil: timestamp("lease_until"),
@@ -134,7 +173,7 @@ export const orderNotification = sqliteTable(
 );
 
 /** Stores purchased SKU snapshots independently of the live catalog. */
-export const orderItem = sqliteTable(
+export const orderItem = pgTable(
 	"order_item",
 	{
 		id: text("id")
@@ -159,7 +198,7 @@ export const orderItem = sqliteTable(
 	],
 );
 
-export const address = sqliteTable(
+export const address = pgTable(
 	"address",
 	{
 		id: text("id")
@@ -177,9 +216,7 @@ export const address = sqliteTable(
 		state: text("state").notNull(),
 		postalCode: text("postal_code").notNull(),
 		country: text("country").notNull(),
-		isPrimary: integer("is_primary", { mode: "boolean" })
-			.notNull()
-			.default(false),
+		isPrimary: boolean("is_primary").notNull().default(false),
 		...timestamps,
 	},
 	(t) => [

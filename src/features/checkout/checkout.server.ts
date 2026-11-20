@@ -50,12 +50,15 @@ export async function getCheckout(
 	};
 }
 
-function checkedAddress(tx: Transaction, userId: string, addressId: string) {
-	const saved = tx
+async function checkedAddress(
+	tx: Transaction,
+	userId: string,
+	addressId: string,
+) {
+	const [saved] = await tx
 		.select()
 		.from(address)
-		.where(and(eq(address.id, addressId), eq(address.userId, userId)))
-		.get();
+		.where(and(eq(address.id, addressId), eq(address.userId, userId)));
 	const destination = usAddressSchema.safeParse(
 		saved && { ...saved, line2: saved.line2 ?? "" },
 	);
@@ -72,18 +75,33 @@ async function quoteCart() {
 		pricing,
 		"Checkout is temporarily unavailable. Please try again later.",
 	);
-	const { cartId, items } = await cart.getForCheckout();
+	const { cartId, items, supplierPages, offerExpiresAt } =
+		await cart.getForCheckout();
 	ensure(cartId && items.length, "Your cart is empty");
 
-	return { cartId, quote: calculateQuote(items, pricing) };
+	const expiresAt = new Date(
+		Math.min(Date.now() + QUOTE_LIFETIME_MS, offerExpiresAt),
+	);
+	return {
+		cartId,
+		quote: calculateQuote(items, pricing),
+		expiresAt,
+		supplierPages,
+	};
 }
 
-const existingDraft = (userId: string, id: string) =>
-	db
-		.select({ id: checkoutSession.id })
-		.from(checkoutSession)
-		.where(mine(userId, id))
-		.get();
+const existingDraft = async (
+	userId: string,
+	id: string,
+	connection: typeof db | Transaction = db,
+) =>
+	(
+		await connection
+			.select({ id: checkoutSession.id })
+			.from(checkoutSession)
+			.where(mine(userId, id))
+			.limit(1)
+	)[0];
 
 /** Retries return the saved quote even if a pricing or cart service is now unavailable. */
 export async function prepareCheckout(
@@ -91,47 +109,49 @@ export async function prepareCheckout(
 	id: string,
 	addressId: string,
 ) {
-	if (existingDraft(userId, id)) return getCheckout(userId, id);
+	if (await existingDraft(userId, id)) return getCheckout(userId, id);
 	let snapshot: Awaited<ReturnType<typeof quoteCart>>;
 	try {
 		snapshot = await quoteCart();
 	} catch (error) {
-		if (existingDraft(userId, id)) return getCheckout(userId, id);
+		if (await existingDraft(userId, id)) return getCheckout(userId, id);
 		throw error;
 	}
-	db.transaction(
-		(tx) => {
-			if (existingDraft(userId, id)) return;
-			const recent = tx
-				.select({ id: checkoutSession.id })
-				.from(checkoutSession)
-				.where(
-					and(
-						eq(checkoutSession.userId, userId),
-						gt(
-							checkoutSession.createdAt,
-							new Date(Date.now() - QUOTE_LIFETIME_MS),
-						),
+	await db.transaction(async (tx) => {
+		await tx
+			.select({ id: user.id })
+			.from(user)
+			.where(eq(user.id, userId))
+			.for("update");
+		if (await existingDraft(userId, id, tx)) return;
+		ensure(
+			snapshot.expiresAt.getTime() > Date.now(),
+			"Some cart items are no longer available. Please review your cart.",
+		);
+		const recent = await tx
+			.select({ id: checkoutSession.id })
+			.from(checkoutSession)
+			.where(
+				and(
+					eq(checkoutSession.userId, userId),
+					gt(
+						checkoutSession.createdAt,
+						new Date(Date.now() - QUOTE_LIFETIME_MS),
 					),
-				)
-				.limit(10)
-				.all();
-			ensure(
-				recent.length < 10,
-				"Too many checkout attempts. Please try again later.",
-			);
-			tx.insert(checkoutSession)
-				.values({
-					id,
-					userId,
-					...snapshot,
-					shippingAddress: checkedAddress(tx, userId, addressId),
-					expiresAt: new Date(Date.now() + QUOTE_LIFETIME_MS),
-				})
-				.run();
-		},
-		{ behavior: "immediate" },
-	);
+				),
+			)
+			.limit(10);
+		ensure(
+			recent.length < 10,
+			"Too many checkout attempts. Please try again later.",
+		);
+		await tx.insert(checkoutSession).values({
+			id,
+			userId,
+			...snapshot,
+			shippingAddress: await checkedAddress(tx, userId, addressId),
+		});
+	});
 	return getCheckout(userId, id);
 }
 
@@ -143,101 +163,90 @@ export async function uploadProof(userId: string, id: string, file: File) {
 	const current = await getCheckout(userId, id);
 	ensure(!current.submittedAt, "This order has already been submitted.");
 	const proof = await readPaymentProof(file);
-	const updated = db
+	const updated = await db
 		.update(checkoutSession)
 		.set({ proofBase64: proof.base64, proofType: proof.type })
-		.where(and(mine(userId, id), isNull(checkoutSession.submittedAt)))
-		.run();
-	ensure(updated.changes === 1, "This order has already been submitted.");
+		.where(and(mine(userId, id), isNull(checkoutSession.submittedAt)));
+	ensure(updated.rowCount === 1, "This order has already been submitted.");
 	return getCheckout(userId, id);
 }
 
-function insertPendingOrder(
+async function insertPendingOrder(
 	tx: Transaction,
 	draft: typeof checkoutSession.$inferSelect,
 	customer: Pick<typeof user.$inferSelect, "name" | "email">,
 	placedAt: Date,
 ) {
-	tx.insert(orders)
-		.values({
-			id: draft.id,
-			userId: draft.userId,
-			status: "pending",
-			currency: "USD",
-			total: draft.quote.totalUsd,
-			shippingAddress: draft.shippingAddress,
-			checkoutQuote: draft.quote,
-			customerName: customer.name,
-			customerEmail: customer.email,
-			createdAt: placedAt,
-		})
-		.run();
-	tx.insert(orderItem)
-		.values(
-			draft.quote.lines.map((line) => ({
-				orderId: draft.id,
-				skuId: line.id,
-				name: line.name,
-				price: line.usdPrice,
-				quantity: line.quantity,
-				imageUrl: line.image,
-				color: line.color,
-				size: line.size,
-			})),
-		)
-		.run();
-	tx.insert(orderNotification).values({ orderId: draft.id }).run();
+	await tx.insert(orders).values({
+		id: draft.id,
+		userId: draft.userId,
+		status: "pending",
+		currency: "USD",
+		total: draft.quote.totalUsd,
+		shippingAddress: draft.shippingAddress,
+		checkoutQuote: draft.quote,
+		customerName: customer.name,
+		customerEmail: customer.email,
+		createdAt: placedAt,
+	});
+	await tx.insert(orderItem).values(
+		draft.quote.lines.map((line) => ({
+			orderId: draft.id,
+			skuId: line.id,
+			name: line.name,
+			price: line.usdPrice,
+			quantity: line.quantity,
+			imageUrl: line.image,
+			color: line.color,
+			size: line.size,
+		})),
+	);
+	await tx.insert(orderNotification).values({ orderId: draft.id });
 }
 
 function commitCheckout(userId: string, id: string) {
-	return db.transaction(
-		(tx) => {
-			const draft = tx
-				.select()
-				.from(checkoutSession)
-				.where(mine(userId, id))
-				.get();
-			ensure(draft, "Checkout not found.");
-			if (draft.submittedAt) return false;
-			ensure(
-				draft.proofBase64 && draft.proofType,
-				"Upload your payment screenshot before placing the order.",
-			);
-			const customer = tx
-				.select({ name: user.name, email: user.email })
-				.from(user)
-				.where(eq(user.id, userId))
-				.get();
-			ensure(customer, "Please sign in to continue.");
-			draft.quote = restoreCheckoutQuote(draft.quote);
-			const placedAt = new Date();
-			insertPendingOrder(tx, draft, customer, placedAt);
-			const cartId = draft.cartId ?? cart.getId();
-			if (cartId) {
-				tx.insert(orderCartCleanup)
-					.values({
-						orderId: id,
-						cartId,
-						lines: draft.quote.lines.map(({ id, quantity }) => ({
-							id,
-							quantity,
-						})),
-					})
-					.run();
-			}
-			tx.update(checkoutSession)
-				.set({ submittedAt: placedAt })
-				.where(mine(userId, id))
-				.run();
-			return Boolean(cartId);
-		},
-		{ behavior: "immediate" },
-	);
+	return db.transaction(async (tx) => {
+		const [draft] = await tx
+			.select()
+			.from(checkoutSession)
+			.where(mine(userId, id))
+			.for("update");
+		ensure(draft, "Checkout not found.");
+		if (draft.submittedAt) return false;
+		ensure(
+			draft.proofBase64 && draft.proofType,
+			"Upload your payment screenshot before placing the order.",
+		);
+		const [customer] = await tx
+			.select({ name: user.name, email: user.email })
+			.from(user)
+			.where(eq(user.id, userId));
+		ensure(customer, "Please sign in to continue.");
+		draft.quote = restoreCheckoutQuote(draft.quote);
+		const placedAt = new Date();
+		await insertPendingOrder(tx, draft, customer, placedAt);
+		const cartId = draft.cartId ?? cart.getId();
+		if (cartId) {
+			await tx.insert(orderCartCleanup).values({
+				orderId: id,
+				cartId,
+				lines: draft.quote.lines.map(({ id, quantity }) => ({
+					id,
+					quantity,
+				})),
+			});
+		}
+		await tx
+			.update(checkoutSession)
+			.set({ submittedAt: placedAt })
+			.where(mine(userId, id));
+		return Boolean(cartId);
+	});
 }
 
 /** Commit the pending order and its jobs together, then try cart cleanup. */
 export async function submitCheckout(userId: string, id: string) {
-	if (commitCheckout(userId, id)) {
+	if (await commitCheckout(userId, id)) {
 		try {
 			await processCartCleanup(id);
 		} catch {

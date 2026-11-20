@@ -13,6 +13,8 @@ import {
 	departmentSlugs,
 } from "#/data/catalog";
 import { site } from "#/data/site";
+import { db } from "#/db";
+import { warehouseShippingRule } from "#/db/schema";
 import {
 	type CatalogRecord,
 	catalogRecordSchema,
@@ -37,7 +39,7 @@ const warehouses = [
 	"urbanfit.example",
 	"kidzone.example",
 	"shoebox.example",
-];
+] as const;
 
 const brands = ["Nike", "Adidas", "Puma", "New Balance", "Reebok", "Asics"];
 
@@ -259,6 +261,15 @@ try {
 				await deleteCatalogProduct(record.id);
 		}
 	}
+	await db
+		.insert(warehouseShippingRule)
+		.values([
+			{ warehouse: warehouses[0], flatRateUsd: 600, freeFromUsd: 5000 },
+			{ warehouse: warehouses[1], flatRateUsd: 800, freeFromUsd: 7500 },
+			{ warehouse: warehouses[2], flatRateUsd: 500 },
+			{ warehouse: warehouses[3], flatRateUsd: 0 },
+		])
+		.onConflictDoNothing();
 	await seed();
 	await syncSearchIndex();
 	await refreshStatsCache();

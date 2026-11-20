@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CartItem } from "#/features/cart/cart";
 import {
 	type CheckoutPricing,
+	selectDeliveryAddressId,
 	usAddressSchema,
 } from "#/features/checkout/checkout";
 import {
@@ -193,4 +194,17 @@ describe("checkout amounts", () => {
 				.success,
 		).toBe(true);
 	});
+});
+
+it("rechecks the selected delivery address when saved addresses refresh", () => {
+	const selected = { id: "selected", country: "US", isPrimary: false };
+	const primary = { id: "primary", country: "USA", isPrimary: true };
+	const moved = { ...selected, country: "France" };
+	expect(selectDeliveryAddressId([primary, selected], selected.id)).toBe(
+		selected.id,
+	);
+	expect(selectDeliveryAddressId([moved, primary], selected.id)).toBe(
+		primary.id,
+	);
+	expect(selectDeliveryAddressId([moved], selected.id)).toBeUndefined();
 });

@@ -1,4 +1,4 @@
-import { drizzle } from "drizzle-orm/node-sqlite";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { openDatabase } from "./connection";
 import { relations } from "./schema";
 

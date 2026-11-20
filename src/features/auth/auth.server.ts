@@ -22,8 +22,11 @@ const secondaryStorage: NonNullable<BetterAuthOptions["secondaryStorage"]> = {
 	},
 	increment: async (key, ttl) => {
 		const redis = await getRedis();
-		const count = await redis.incr(key);
-		if (count === 1) await redis.expire(key, ttl);
+		const [count] = await redis.increx(key, {
+			expiration: { type: "EX", value: ttl, ENX: true },
+		});
+		if (typeof count !== "number")
+			throw new Error("Invalid rate limit counter");
 		return count;
 	},
 };
@@ -31,7 +34,7 @@ const secondaryStorage: NonNullable<BetterAuthOptions["secondaryStorage"]> = {
 const perHour = (max: number) => ({ window: 3600, max });
 
 export const auth = betterAuth({
-	database: drizzleAdapter(db, { provider: "sqlite", schema }),
+	database: drizzleAdapter(db, { provider: "pg", schema }),
 	secondaryStorage,
 
 	appName: site.name,

@@ -5,34 +5,31 @@ import { cart } from "#/features/cart/cart.server";
 
 /** The next attempt time doubles as a lease while a worker contacts Redis. */
 function claimCleanup(orderId?: string) {
-	return db.transaction(
-		(tx) => {
-			const job = tx
-				.select()
-				.from(orderCartCleanup)
-				.where(
-					and(
-						lte(orderCartCleanup.nextAttemptAt, new Date()),
-						orderId ? eq(orderCartCleanup.orderId, orderId) : undefined,
-					),
-				)
-				.orderBy(orderCartCleanup.nextAttemptAt)
-				.limit(1)
-				.get();
-			if (!job) return;
-			const deadline = new Date(Date.now() + 30_000);
-			tx.update(orderCartCleanup)
-				.set({ nextAttemptAt: deadline })
-				.where(eq(orderCartCleanup.orderId, job.orderId))
-				.run();
-			return { ...job, deadline };
-		},
-		{ behavior: "immediate" },
-	);
+	return db.transaction(async (tx) => {
+		const [job] = await tx
+			.select()
+			.from(orderCartCleanup)
+			.where(
+				and(
+					lte(orderCartCleanup.nextAttemptAt, new Date()),
+					orderId ? eq(orderCartCleanup.orderId, orderId) : undefined,
+				),
+			)
+			.orderBy(orderCartCleanup.nextAttemptAt)
+			.limit(1)
+			.for("update", { skipLocked: true });
+		if (!job) return;
+		const deadline = new Date(Date.now() + 30_000);
+		await tx
+			.update(orderCartCleanup)
+			.set({ nextAttemptAt: deadline })
+			.where(eq(orderCartCleanup.orderId, job.orderId));
+		return { ...job, deadline };
+	});
 }
 
 export async function processCartCleanup(orderId?: string) {
-	const job = claimCleanup(orderId);
+	const job = await claimCleanup(orderId);
 	if (!job) return false;
 	try {
 		await cart.removePurchased(
@@ -47,16 +44,15 @@ export async function processCartCleanup(orderId?: string) {
 		});
 		return true;
 	}
-	const removed = db
+	const removed = await db
 		.delete(orderCartCleanup)
 		.where(
 			and(
 				eq(orderCartCleanup.orderId, job.orderId),
 				eq(orderCartCleanup.nextAttemptAt, job.deadline),
 			),
-		)
-		.run();
-	if (removed.changes) {
+		);
+	if (removed.rowCount) {
 		try {
 			await cart.acknowledgePurchaseCleanup(job.cartId, job.orderId);
 		} catch {

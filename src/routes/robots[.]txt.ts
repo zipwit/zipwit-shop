@@ -6,7 +6,7 @@ export const Route = createFileRoute("/robots.txt")({
 		handlers: {
 			GET: () =>
 				new Response(
-					`User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${env.SITE_URL}/sitemap.xml\n`,
+					`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin\nSitemap: ${env.SITE_URL}/sitemap.xml\n`,
 					{
 						headers: {
 							"Content-Type": "text/plain",

@@ -1,17 +1,14 @@
-import { sql } from "drizzle-orm";
-import { integer } from "drizzle-orm/sqlite-core";
+import { timestamp as pgTimestamp } from "drizzle-orm/pg-core";
 
 export const timestamp = (name: string) =>
-	integer(name, { mode: "timestamp_ms" });
-
-const now = sql`(CAST(unixepoch('subsec') * 1000 AS INTEGER))`;
+	pgTimestamp(name, { withTimezone: true, precision: 3 });
 
 export const timestamps = {
-	createdAt: timestamp("created_at").default(now).notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at")
-		.default(now)
+		.defaultNow()
 		.$onUpdate(() => new Date())
 		.notNull(),
 };
 
-export const dueAt = () => timestamp("next_attempt_at").default(now).notNull();
+export const dueAt = () => timestamp("next_attempt_at").defaultNow().notNull();

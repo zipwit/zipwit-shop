@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { sql } from "drizzle-orm";
 import { db } from "#/db";
+import { checkoutSession } from "#/db/schema";
 import { getRedis } from "#/server/redis.server";
 
 export const Route = createFileRoute("/api/ready")({
@@ -9,7 +9,10 @@ export const Route = createFileRoute("/api/ready")({
 			GET: async () => {
 				const headers = { "Cache-Control": "no-store" };
 				try {
-					db.get(sql`select 1`);
+					await db
+						.select({ supplierPages: checkoutSession.supplierPages })
+						.from(checkoutSession)
+						.limit(0);
 					await (await getRedis()).get("ready:probe");
 					return Response.json({ status: "ready" }, { headers });
 				} catch {

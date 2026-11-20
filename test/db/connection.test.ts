@@ -1,42 +1,47 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { openDatabase } from "#/db/connection";
 import { user } from "#/db/schema";
-import { testDatabase } from "../support/sqlite";
+import { testDatabase } from "../support/postgres";
 
-it("shares committed accounts with the worker and rolls back a failed write", () => {
-	const dir = mkdtempSync(join(tmpdir(), "zipwit-test-"));
-	const path = join(dir, "shop.sqlite");
-	const app = testDatabase(path);
-	const worker = openDatabase(path);
+const db = await testDatabase();
+it("isolates uncommitted writes, rolls back failures and shares committed accounts", async () => {
+	const buyer = { id: "buyer", name: "Buyer", email: "buyer@example.com" };
+	await expect(
+		db.transaction(async (tx) => {
+			await tx.insert(user).values(buyer);
+			expect(await db.select().from(user)).toEqual([]);
+			await tx.insert(user).values(buyer);
+		}),
+	).rejects.toThrow();
+	expect(await db.select().from(user)).toEqual([]);
+	await db.insert(user).values(buyer);
+	expect(await db.select({ id: user.id }).from(user)).toEqual([
+		{ id: "buyer" },
+	]);
+});
+
+it("reconnects after PostgreSQL closes an idle connection", async () => {
+	const pool = openDatabase(db.$client.options.connectionString);
+	const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
 	try {
-		expect(worker.prepare("PRAGMA journal_mode").get()).toEqual({
-			journal_mode: "wal",
-		});
-		expect(worker.prepare("PRAGMA foreign_keys").get()).toEqual({
-			foreign_keys: 1,
-		});
-		const buyer = { id: "buyer", name: "Buyer", email: "buyer@example.com" };
-		expect(() =>
-			app.transaction(
-				(tx) => {
-					tx.insert(user).values(buyer).run();
-					expect(worker.prepare("SELECT id FROM user").all()).toEqual([]);
-					tx.insert(user).values(buyer).run();
-				},
-				{ behavior: "immediate" },
+		const {
+			rows: [first],
+		} = await pool.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+		expect(first).toBeDefined();
+		await db.$client.query("SELECT pg_terminate_backend($1)", [first?.pid]);
+		await vi.waitFor(() =>
+			expect(warning).toHaveBeenCalledWith(
+				"Idle PostgreSQL connection closed",
+				expect.any(String),
 			),
-		).toThrow();
-		expect(app.select().from(user).all()).toEqual([]);
-		app.insert(user).values(buyer).run();
-		expect(worker.prepare("SELECT id FROM user").get()).toEqual({
-			id: "buyer",
-		});
+		);
+		const {
+			rows: [next],
+		} = await pool.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+		expect(next?.pid).toBeDefined();
+		expect(next?.pid).not.toBe(first?.pid);
 	} finally {
-		worker.close();
-		app.$client.close();
-		rmSync(dir, { recursive: true, force: true });
+		warning.mockRestore();
+		await pool.end();
 	}
 });

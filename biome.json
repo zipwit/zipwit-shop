@@ -140,9 +140,9 @@
 											"#/db/**",
 											"drizzle-orm",
 											"drizzle-orm/**",
-											"node:sqlite"
+											"pg"
 										],
-										"message": "Redis owns the live catalog; SQLite belongs to accounts and transactions."
+										"message": "Redis owns the live catalog; PostgreSQL belongs to accounts and transactions."
 									},
 									{
 										"group": [

@@ -7,12 +7,16 @@ export const shippingRuleSchema = z.object({
 	freeFromUsd: z.number().int().min(0).max(2_000_000_000).nullable(),
 });
 export type ShippingRule = z.infer<typeof shippingRuleSchema>;
+
+/** Public shipping details for one line in the cart. */
 export type ItemShipping = {
 	groupId: string;
 	rule: ShippingRule | null;
-	/** Cart estimate only; checkout converts again using its frozen rate. */
+	/** Unit price in USD cents at the cart's preview rate, when available. */
 	estimatedUnitUsd: number | null;
 };
+
+/** Shipping charge and rule saved when a checkout quote is created. */
 export type ShipmentQuote = {
 	groupId: string;
 	itemIds: string[];
@@ -40,6 +44,7 @@ export function getShipmentRule(items: CartItem[]) {
 	return consistent ? rule : null;
 }
 
+/** Calculates one warehouse's charge in USD cents from its merchandise subtotal. */
 export function shippingCharge(subtotalUsd: number, rule: ShippingRule) {
 	return rule.freeFromUsd !== null && subtotalUsd >= rule.freeFromUsd
 		? 0
@@ -60,6 +65,7 @@ export function groupShipments<T extends CartItem>(items: T[]) {
 		.map(([groupId, lines]) => ({ groupId, lines }));
 }
 
+/** Returns a preview in USD cents when every line has a usable price and shares one rule. */
 export function estimateShipment(items: CartItem[]) {
 	const rule = getShipmentRule(items);
 	if (!rule) return null;

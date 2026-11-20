@@ -4,7 +4,8 @@ import { z } from "zod";
 import { findCatalogSkus } from "#/features/catalog/catalog-read.server";
 import { getGelPerUsd } from "#/features/checkout/exchange-rate.server";
 import { unitPriceUsd } from "#/features/shipping/money.server";
-import { getWarehouseShipping } from "#/features/shipping/warehouse-shipping.server";
+import { getWarehouseShippingRules } from "#/features/shipping/warehouse-shipping.server";
+import { publicStoreId } from "#/features/stores/store.server";
 import { PublicError } from "#/server/public-error";
 import { getRedis } from "#/server/redis.server";
 import { type CartSnapshot, unavailableCartEntries } from "./cart";
@@ -15,7 +16,7 @@ const CART_COOKIE = "cartId";
 const cookieId = () => z.uuid().safeParse(getCookie(CART_COOKIE)).data;
 const keyFor = (id: string) => `cart:${id}`;
 
-/** The visitor's cart key, creating the cart (and its cookie) on first use. */
+/** Issues or renews the visitor's cart cookie before adding an item. */
 const cartKey = () => {
 	const id = cookieId() ?? crypto.randomUUID();
 	setCookie(CART_COOKIE, id, {
@@ -29,14 +30,20 @@ const cartKey = () => {
 };
 
 const store = async () => createCartStore(await getRedis(), findCatalogSkus);
-async function getCart(id = cookieId(), strict = false): Promise<CartSnapshot> {
+
+/**
+ * Joins saved quantities with current catalog prices and warehouse rules.
+ * A preview lists unavailable entries for removal. Checkout rejects those
+ * entries and lets the quote supply its own exchange rate.
+ */
+async function getCart(id: string | undefined, mode: "preview" | "checkout") {
 	const entries = id
 		? Object.entries(await (await getRedis()).hGetAll(keyFor(id)))
 		: [];
-	if (entries.length === 0) return { items: [], unavailableIds: [] };
-
 	const available = keyBy(
-		await findCatalogSkus(entries.map(([field]) => field)),
+		entries.length
+			? await findCatalogSkus(entries.map(([field]) => field))
+			: [],
 		(sku) => sku.id,
 	);
 	const unavailableIds = unavailableCartEntries(
@@ -44,45 +51,71 @@ async function getCart(id = cookieId(), strict = false): Promise<CartSnapshot> {
 		new Set(Object.keys(available)),
 	).map(([id]) => id);
 	const unavailable = new Set(unavailableIds);
-	if (strict && unavailableIds.length) {
+	if (mode === "checkout" && unavailableIds.length) {
 		throw new PublicError(
 			"Some cart items are no longer available. Please review your cart.",
 		);
 	}
 
-	const rate =
-		!strict && Object.values(available).some((sku) => sku.currency === "GEL")
-			? await getGelPerUsd()
-			: null;
-	const items = compact(
-		entries.map(([field, value]) => {
-			const sku = available[String(field)];
-			if (!sku || unavailable.has(field)) return undefined;
-			const { warehouse, ...line } = sku;
-			return {
-				...line,
-				quantity: Number(value),
-				shipping: {
-					...getWarehouseShipping(warehouse),
-					estimatedUnitUsd: unitPriceUsd(
-						sku.price,
-						sku.currency,
-						rate?.gelPerUsd ?? null,
-					),
-				},
-			};
+	const lines = compact(
+		entries.map(([id, value]) => {
+			const sku = available[id];
+			if (!sku || unavailable.has(id)) return undefined;
+			return { ...sku, quantity: Number(value) };
 		}),
 	);
-	return { items, unavailableIds };
+	const [rules, rate] = await Promise.all([
+		getWarehouseShippingRules(lines.map((line) => line.warehouse)),
+		mode === "preview" && lines.some((line) => line.currency === "GEL")
+			? getGelPerUsd()
+			: null,
+	]);
+	const items = lines.map((line) => ({
+		id: line.id,
+		name: line.name,
+		color: line.color,
+		size: line.size,
+		currency: line.currency,
+		image: line.image,
+		price: line.price,
+		quantity: line.quantity,
+		shipping: {
+			groupId: publicStoreId(line.warehouse),
+			rule: rules.get(line.warehouse) ?? null,
+			estimatedUnitUsd: unitPriceUsd(
+				line.price,
+				line.currency,
+				rate?.gelPerUsd ?? null,
+			),
+		},
+	}));
+	return {
+		snapshot: { items, unavailableIds },
+		supplierPages: Object.fromEntries(
+			lines.flatMap((line) =>
+				line.sourceUrl ? [[line.id, line.sourceUrl] as const] : [],
+			),
+		),
+		offerExpiresAt: Math.min(
+			...lines.flatMap((line) =>
+				line.sourceExpiresAt ? [Date.parse(line.sourceExpiresAt)] : [],
+			),
+		),
+	};
 }
 
 export const cart = {
 	getId: cookieId,
-	get: async () => (await getCart()).items,
-	getSnapshot: () => getCart(),
+	get: async () => (await getCart(cookieId(), "preview")).snapshot.items,
+	getSnapshot: async (): Promise<CartSnapshot> =>
+		(await getCart(cookieId(), "preview")).snapshot,
 	async getForCheckout() {
 		const cartId = cookieId();
-		return { cartId, items: cartId ? (await getCart(cartId, true)).items : [] };
+		const { snapshot, supplierPages, offerExpiresAt } = await getCart(
+			cartId,
+			"checkout",
+		);
+		return { cartId, items: snapshot.items, supplierPages, offerExpiresAt };
 	},
 
 	async removeUnavailable() {
@@ -112,7 +145,7 @@ export const cart = {
 		if (id) await (await store()).setQuantity(keyFor(id), skuId, quantity);
 	},
 
-	/** Empties the cart (for checkout to call once an order is placed). */
+	/** Deletes every line in the visitor's cart. */
 	async clear() {
 		const id = cookieId();
 		if (id) await (await getRedis()).del([keyFor(id)]);

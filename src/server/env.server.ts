@@ -56,6 +56,14 @@ const envSchema = z
 
 		BETTER_AUTH_URL: z.url().default("http://localhost:3000"),
 		BETTER_AUTH_SECRET: z.string().min(32),
+		CATALOG_ADMIN_USER_IDS: optionalString.transform(
+			(value) =>
+				value
+					?.split(",")
+					.map((id) => id.trim())
+					.filter(Boolean) ?? [],
+		),
+		ZIPWIT_CONFIG_TOKEN: optionalString.pipe(z.string().min(32).optional()),
 
 		GOOGLE_CLIENT_ID: optionalString,
 		GOOGLE_CLIENT_SECRET: optionalString,
@@ -73,7 +81,6 @@ const envSchema = z
 
 		CHECKOUT_IBAN: optionalString,
 		CHECKOUT_SERVICE_FEE_BPS: optionalString,
-		WAREHOUSE_SHIPPING_RULES: optionalString,
 		TELEGRAM_BOT_TOKEN: optionalString,
 		TELEGRAM_CHAT_ID: optionalString,
 		OPS_ALERT_EMAIL: optionalString.pipe(z.email().optional()),

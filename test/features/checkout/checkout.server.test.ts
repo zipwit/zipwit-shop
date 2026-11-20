@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import {
 	address,
@@ -24,7 +24,7 @@ const state = vi.hoisted(() => ({
 	pricing: vi.fn(),
 }));
 vi.mock("#/db", async () => ({
-	db: (await import("../../support/sqlite")).testDatabase(),
+	db: await (await import("../../support/postgres")).testDatabase(),
 }));
 vi.mock("#/features/cart/cart.server", () => ({
 	cart: { getForCheckout: state.cart, getId: state.currentCartId },
@@ -83,30 +83,34 @@ const draft = {
 	submittedAt: null,
 };
 
-function saveDraft(fields: Partial<typeof checkoutSession.$inferInsert> = {}) {
-	db.insert(checkoutSession)
-		.values({ ...draft, expiresAt: new Date(Date.now() + 60_000), ...fields })
-		.run();
+async function saveDraft(
+	fields: Partial<typeof checkoutSession.$inferInsert> = {},
+) {
+	await db
+		.insert(checkoutSession)
+		.values({ ...draft, expiresAt: new Date(Date.now() + 60_000), ...fields });
 }
 
-beforeEach(() => {
-	db.delete(orders).run();
-	db.delete(checkoutSession).run();
-	db.delete(user).run();
-	db.insert(user)
-		.values({ id: "buyer", name: "Buyer", email: "buyer@example.com" })
-		.run();
-	db.insert(address)
-		.values({ ...shippingAddress, id, userId: "buyer" })
-		.run();
+beforeEach(async () => {
+	await db.delete(orders);
+	await db.delete(checkoutSession);
+	await db.delete(user);
+	await db
+		.insert(user)
+		.values({ id: "buyer", name: "Buyer", email: "buyer@example.com" });
+	await db.insert(address).values({ ...shippingAddress, id, userId: "buyer" });
 	vi.resetAllMocks();
 	state.pricing.mockResolvedValue(quote.pricing);
-	state.cart.mockResolvedValue({ cartId, items: quote.lines });
+	state.cart.mockResolvedValue({
+		cartId,
+		items: quote.lines,
+		offerExpiresAt: Infinity,
+		supplierPages: {},
+	});
 });
-afterAll(() => db.$client.close());
 
 it("resumes a prepared checkout without fetching a new exchange rate", async () => {
-	saveDraft();
+	await saveDraft();
 	expect(await prepareCheckout("buyer", id, id)).toMatchObject({ id, quote });
 	expect(state.pricing).not.toHaveBeenCalled();
 });
@@ -117,32 +121,35 @@ it("restores legacy quote totals and the original rate date", async () => {
 		pricing: { rateDate, ...pricing },
 		...old
 	} = quote;
-	saveDraft();
-	db.$client.prepare("UPDATE checkout_session SET quote = ? WHERE id = ?").run(
-		JSON.stringify({
-			...old,
-			paymentTotal: totalGel,
-			pricing: {
-				...pricing,
-				paymentCurrency: "GEL",
-				rateUpdatedAt: rateDate,
-			},
-		}),
-		id,
+	await saveDraft();
+	await db.$client.query(
+		"UPDATE checkout_session SET quote = $1 WHERE id = $2",
+		[
+			JSON.stringify({
+				...old,
+				paymentTotal: totalGel,
+				pricing: {
+					...pricing,
+					paymentCurrency: "GEL",
+					rateUpdatedAt: rateDate,
+				},
+			}),
+			id,
+		],
 	);
 	expect((await getCheckout("buyer", id)).quote).toMatchObject(quote);
 });
 
 it("returns a concurrent checkout created while pricing was unavailable", async () => {
 	state.pricing.mockImplementationOnce(async () => {
-		saveDraft();
+		await saveDraft();
 		return null;
 	});
 	expect(await prepareCheckout("buyer", id, id)).toMatchObject({ id, quote });
 });
 
 it("requires ownership before reading or uploading a receipt", async () => {
-	saveDraft();
+	await saveDraft();
 	await expect(getCheckout("other", id)).rejects.toThrow("Checkout not found");
 	await expect(
 		uploadProof("other", id, new File(["proof"], "proof.png")),
@@ -150,17 +157,17 @@ it("requires ownership before reading or uploading a receipt", async () => {
 });
 
 it("reports missing proof as a boolean and rejects submission before proof is uploaded", async () => {
-	saveDraft({ proofBase64: null, proofType: null });
+	await saveDraft({ proofBase64: null, proofType: null });
 	expect((await getCheckout("buyer", id)).proofUploaded).toBe(false);
 	await expect(submitCheckout("buyer", id)).rejects.toThrow(
 		"Upload your payment screenshot",
 	);
-	expect(db.select().from(orders).all()).toEqual([]);
+	expect(await db.select().from(orders)).toEqual([]);
 	expect(state.cleanup).not.toHaveBeenCalled();
 });
 
 it("keeps an order, purchased lines and jobs together across a retry", async () => {
-	saveDraft();
+	await saveDraft();
 	const first = await submitCheckout("buyer", id);
 	expect(await submitCheckout("buyer", id)).toEqual(first);
 	expect(first).toMatchObject({
@@ -169,7 +176,7 @@ it("keeps an order, purchased lines and jobs together across a retry", async () 
 		submittedAt: expect.any(String),
 	});
 	expect(first).not.toHaveProperty("proofBase64");
-	expect(db.select().from(orders).all()).toMatchObject([
+	expect(await db.select().from(orders)).toMatchObject([
 		{
 			id,
 			userId: "buyer",
@@ -180,7 +187,7 @@ it("keeps an order, purchased lines and jobs together across a retry", async () 
 			customerEmail: "buyer@example.com",
 		},
 	]);
-	expect(db.select().from(orderItem).all()).toMatchObject([
+	expect(await db.select().from(orderItem)).toMatchObject([
 		{
 			orderId: id,
 			skuId: id,
@@ -189,36 +196,38 @@ it("keeps an order, purchased lines and jobs together across a retry", async () 
 			name: "Shoes (Black, 8)",
 		},
 	]);
-	expect(db.select().from(orderNotification).all()).toMatchObject([
+	expect(await db.select().from(orderNotification)).toMatchObject([
 		{ orderId: id },
 	]);
-	expect(db.select().from(orderCartCleanup).all()).toMatchObject([
+	expect(await db.select().from(orderCartCleanup)).toMatchObject([
 		{ orderId: id, cartId, lines: [{ id, quantity: 1 }] },
 	]);
 	expect(state.cleanup).toHaveBeenCalledExactlyOnceWith(id);
 });
 
 it("rolls back the order and draft status if its notification cannot be saved", async () => {
-	saveDraft();
-	db.$client.exec(
-		"CREATE TEMP TRIGGER reject_job BEFORE INSERT ON order_notification BEGIN SELECT RAISE(ABORT, 'job failed'); END",
+	await saveDraft();
+	await db.$client.query(
+		"ALTER TABLE order_notification ADD CONSTRAINT reject_job CHECK (false)",
 	);
 	try {
 		await expect(submitCheckout("buyer", id)).rejects.toThrow();
-		expect(db.select().from(orders).all()).toEqual([]);
-		expect(db.select().from(orderItem).all()).toEqual([]);
+		expect(await db.select().from(orders)).toEqual([]);
+		expect(await db.select().from(orderItem)).toEqual([]);
 		expect((await getCheckout("buyer", id)).submittedAt).toBeNull();
 		expect(state.cleanup).not.toHaveBeenCalled();
 	} finally {
-		db.$client.exec("DROP TRIGGER reject_job");
+		await db.$client.query(
+			"ALTER TABLE order_notification DROP CONSTRAINT reject_job",
+		);
 	}
 });
 
 it("queues cleanup for a draft without a saved cart when a cart cookie exists", async () => {
-	saveDraft({ cartId: null });
+	await saveDraft({ cartId: null });
 	state.currentCartId.mockReturnValue(cartId);
 	await submitCheckout("buyer", id);
-	expect(db.select().from(orderCartCleanup).get()).toMatchObject({
+	expect((await db.select().from(orderCartCleanup))[0]).toMatchObject({
 		orderId: id,
 		cartId,
 	});
@@ -228,9 +237,9 @@ it("preserves snapshots of multiple items, including a removed SKU", async () =>
 	const first = quote.lines[0];
 	if (!first) throw new Error("Missing test line");
 	const second = { ...first, id: crypto.randomUUID(), name: "Removed product" };
-	saveDraft({ quote: calculateQuote([first, second], quote.pricing) });
+	await saveDraft({ quote: calculateQuote([first, second], quote.pricing) });
 	await submitCheckout("buyer", id);
-	expect(db.select().from(orderItem).all()).toEqual(
+	expect(await db.select().from(orderItem)).toEqual(
 		expect.arrayContaining([
 			expect.objectContaining({ skuId: first.id }),
 			expect.objectContaining({ skuId: second.id, name: second.name }),
@@ -246,7 +255,7 @@ it("blocks checkout if a warehouse has no shipping rule", async () => {
 	await expect(prepareCheckout("buyer", id, id)).rejects.toThrow(
 		"Shipping is not available",
 	);
-	expect(db.select().from(checkoutSession).get()).toBeUndefined();
+	expect((await db.select().from(checkoutSession))[0]).toBeUndefined();
 });
 
 it("persists the per-warehouse breakdown once for concurrent preparations", async () => {
@@ -254,14 +263,45 @@ it("persists the per-warehouse breakdown once for concurrent preparations", asyn
 		prepareCheckout("buyer", id, id),
 		prepareCheckout("buyer", id, id),
 	]);
-	expect(db.select().from(checkoutSession).all()).toMatchObject([
+	expect(await db.select().from(checkoutSession)).toMatchObject([
 		{ cartId, quote: { shipments: quote.shipments, shippingUsd: 700 } },
 	]);
+});
+
+it("caps payment instructions at the earliest quoted supplier expiry across retries", async () => {
+	const expiry = new Date(Date.now() + 60_000).toISOString();
+	const supplierPages = { [id]: "https://private.example/p/123" };
+	state.cart.mockResolvedValue({
+		cartId,
+		items: quote.lines,
+		offerExpiresAt: Date.parse(expiry),
+		supplierPages,
+	});
+	const saved = await prepareCheckout("buyer", id, id);
+	expect(saved.expiresAt).toBe(expiry);
+	expect(JSON.stringify(saved)).not.toContain("private.example");
+	expect((await db.select().from(checkoutSession))[0]?.supplierPages).toEqual(
+		supplierPages,
+	);
+	state.cart.mockRejectedValue(new Error("catalog offline"));
+	expect((await prepareCheckout("buyer", id, id)).expiresAt).toBe(expiry);
+});
+
+it("rejects an observation that expired while preparing the quote", async () => {
+	state.cart.mockResolvedValue({
+		cartId,
+		items: quote.lines,
+		offerExpiresAt: 0,
+	});
+	await expect(prepareCheckout("buyer", id, id)).rejects.toThrow(
+		"no longer available",
+	);
+	expect((await db.select().from(checkoutSession))[0]).toBeUndefined();
 });
 
 it("preserves a catalog outage error", async () => {
 	const error = new Error("catalog unavailable");
 	state.cart.mockRejectedValueOnce(error);
 	await expect(prepareCheckout("buyer", id, id)).rejects.toBe(error);
-	expect(db.select().from(checkoutSession).get()).toBeUndefined();
+	expect((await db.select().from(checkoutSession))[0]).toBeUndefined();
 });

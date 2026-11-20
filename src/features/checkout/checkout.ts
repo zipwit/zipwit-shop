@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Address } from "#/features/addresses/address.functions";
 import { createAddressSchema } from "#/features/addresses/address.schema";
 import type { CartItem } from "#/features/cart/cart";
 import type { ShipmentQuote } from "#/features/shipping/shipping";
@@ -16,6 +17,19 @@ export function isUsCountry(country: string) {
 		"აშშ",
 		"ამერიკის შეერთებული შტატები",
 	].includes(country.trim().toLowerCase());
+}
+
+/** Prefers the shopper's selection, then their primary address, among U.S. destinations. */
+export function selectDeliveryAddressId(
+	addresses: readonly Pick<Address, "id" | "country" | "isPrimary">[],
+	selectedId: string,
+) {
+	const eligible = addresses.filter((address) => isUsCountry(address.country));
+	return (
+		eligible.find((address) => address.id === selectedId) ??
+		eligible.find((address) => address.isPrimary) ??
+		eligible[0]
+	)?.id;
 }
 
 export const usAddressSchema = createAddressSchema("en")

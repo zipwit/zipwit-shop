@@ -46,38 +46,35 @@ async function alertOps(orderId: string, attempts: number) {
 }
 
 function claimNotification(orderId?: string) {
-	return db.transaction(
-		(tx) => {
-			const now = new Date();
-			const pending = tx
-				.select()
-				.from(orderNotification)
-				.where(
-					and(
-						isNull(orderNotification.sentAt),
-						lt(orderNotification.nextAttemptAt, now),
-						or(
-							isNull(orderNotification.leaseUntil),
-							lt(orderNotification.leaseUntil, now),
-						),
-						orderId ? eq(orderNotification.orderId, orderId) : undefined,
+	return db.transaction(async (tx) => {
+		const now = new Date();
+		const [pending] = await tx
+			.select()
+			.from(orderNotification)
+			.where(
+				and(
+					isNull(orderNotification.sentAt),
+					lt(orderNotification.nextAttemptAt, now),
+					or(
+						isNull(orderNotification.leaseUntil),
+						lt(orderNotification.leaseUntil, now),
 					),
-				)
-				.orderBy(orderNotification.nextAttemptAt)
-				.limit(1)
-				.get();
-			if (!pending) return null;
-			tx.update(orderNotification)
-				.set({
-					leaseUntil: new Date(Date.now() + 10 * 60_000),
-					attempts: pending.attempts + 1,
-				})
-				.where(eq(orderNotification.orderId, pending.orderId))
-				.run();
-			return pending;
-		},
-		{ behavior: "immediate" },
-	);
+					orderId ? eq(orderNotification.orderId, orderId) : undefined,
+				),
+			)
+			.orderBy(orderNotification.nextAttemptAt)
+			.limit(1)
+			.for("update", { skipLocked: true });
+		if (!pending) return null;
+		await tx
+			.update(orderNotification)
+			.set({
+				leaseUntil: new Date(Date.now() + 10 * 60_000),
+				attempts: pending.attempts + 1,
+			})
+			.where(eq(orderNotification.orderId, pending.orderId));
+		return pending;
+	});
 }
 
 async function sendOrderMessages(
@@ -135,7 +132,7 @@ async function sendPaymentProof(
 export async function deliverOrderNotification(orderId?: string) {
 	const chatId = env.TELEGRAM_CHAT_ID;
 	if (!env.TELEGRAM_BOT_TOKEN || !chatId) return false;
-	const job = claimNotification(orderId);
+	const job = await claimNotification(orderId);
 	if (!job) return false;
 	try {
 		const [order] = await db

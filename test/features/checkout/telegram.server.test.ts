@@ -19,17 +19,23 @@ vi.mock("#/db", () => {
 	const tx = {
 		select: () => {
 			const rows = state.rows.shift() ?? [];
-			const query = {
-				from: (_table: unknown) => query,
-				where: (_filter: unknown) => query,
-				orderBy: (_order: unknown) => query,
-				limit: (_count: number) => query,
-				get: () => rows[0],
-				// biome-ignore lint/suspicious/noThenProperty: Drizzle query builders are intentionally awaitable.
-				then: (resolve: (rows: unknown[]) => unknown) =>
-					Promise.resolve(rows).then(resolve),
-			};
-			return query;
+			return Object.assign(Promise.resolve(rows), {
+				from() {
+					return this;
+				},
+				where() {
+					return this;
+				},
+				orderBy() {
+					return this;
+				},
+				limit() {
+					return this;
+				},
+				for() {
+					return this;
+				},
+			});
 		},
 		update: (_table: unknown) => ({
 			set: (value: Record<string, unknown>) => ({

@@ -11,11 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as DealsRouteImport } from './routes/deals'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as DepartmentChar123CategoryChar125RouteImport } from './routes/$department.{-$category}'
+import { Route as ApiCatalogFeedsRouteImport } from './routes/api/catalog-feeds'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiReadyRouteImport } from './routes/api/ready'
 import { Route as AuthPathRouteImport } from './routes/auth/$path'
@@ -33,6 +35,11 @@ const IndexRoute = IndexRouteImport.update({
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CheckoutRoute = CheckoutRouteImport.update({
@@ -61,6 +68,11 @@ const DepartmentChar123CategoryChar125Route =
     path: '/$department/{-$category}',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCatalogFeedsRoute = ApiCatalogFeedsRouteImport.update({
+  id: '/api/catalog-feeds',
+  path: '/api/catalog-feeds',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -105,11 +117,13 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
   '/deals': typeof DealsRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$department/{-$category}': typeof DepartmentChar123CategoryChar125Route
+  '/api/catalog-feeds': typeof ApiCatalogFeedsRoute
   '/api/health': typeof ApiHealthRoute
   '/api/ready': typeof ApiReadyRoute
   '/auth/$path': typeof AuthPathRoute
@@ -122,11 +136,13 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
   '/deals': typeof DealsRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$department/{-$category}': typeof DepartmentChar123CategoryChar125Route
+  '/api/catalog-feeds': typeof ApiCatalogFeedsRoute
   '/api/health': typeof ApiHealthRoute
   '/api/ready': typeof ApiReadyRoute
   '/auth/$path': typeof AuthPathRoute
@@ -140,11 +156,13 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
   '/deals': typeof DealsRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$department/{-$category}': typeof DepartmentChar123CategoryChar125Route
+  '/api/catalog-feeds': typeof ApiCatalogFeedsRoute
   '/api/health': typeof ApiHealthRoute
   '/api/ready': typeof ApiReadyRoute
   '/auth/$path': typeof AuthPathRoute
@@ -159,11 +177,13 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
+    | '/admin'
     | '/checkout'
     | '/deals'
     | '/robots.txt'
     | '/sitemap.xml'
     | '/$department/{-$category}'
+    | '/api/catalog-feeds'
     | '/api/health'
     | '/api/ready'
     | '/auth/$path'
@@ -176,11 +196,13 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/admin'
     | '/checkout'
     | '/deals'
     | '/robots.txt'
     | '/sitemap.xml'
     | '/$department/{-$category}'
+    | '/api/catalog-feeds'
     | '/api/health'
     | '/api/ready'
     | '/auth/$path'
@@ -193,11 +215,13 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/about'
+    | '/admin'
     | '/checkout'
     | '/deals'
     | '/robots.txt'
     | '/sitemap.xml'
     | '/$department/{-$category}'
+    | '/api/catalog-feeds'
     | '/api/health'
     | '/api/ready'
     | '/auth/$path'
@@ -211,11 +235,13 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  AdminRoute: typeof AdminRoute
   CheckoutRoute: typeof CheckoutRoute
   DealsRoute: typeof DealsRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   DepartmentChar123CategoryChar125Route: typeof DepartmentChar123CategoryChar125Route
+  ApiCatalogFeedsRoute: typeof ApiCatalogFeedsRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiReadyRoute: typeof ApiReadyRoute
   AuthPathRoute: typeof AuthPathRoute
@@ -240,6 +266,13 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/checkout': {
@@ -275,6 +308,13 @@ declare module '@tanstack/react-router' {
       path: '/$department/{-$category}'
       fullPath: '/$department/{-$category}'
       preLoaderRoute: typeof DepartmentChar123CategoryChar125RouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/catalog-feeds': {
+      id: '/api/catalog-feeds'
+      path: '/api/catalog-feeds'
+      fullPath: '/api/catalog-feeds'
+      preLoaderRoute: typeof ApiCatalogFeedsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -339,11 +379,13 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  AdminRoute: AdminRoute,
   CheckoutRoute: CheckoutRoute,
   DealsRoute: DealsRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   DepartmentChar123CategoryChar125Route: DepartmentChar123CategoryChar125Route,
+  ApiCatalogFeedsRoute: ApiCatalogFeedsRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiReadyRoute: ApiReadyRoute,
   AuthPathRoute: AuthPathRoute,
