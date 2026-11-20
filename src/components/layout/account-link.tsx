@@ -3,6 +3,7 @@ import { UserIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { UserButton } from "#/components/auth/user/user-button";
 import { LinkButton } from "#/components/link-button";
+import { CatalogAdminLink } from "#/features/admin/components/catalog-admin-link";
 import { useTranslation } from "#/i18n/translate";
 
 /** "Sign in" for guests, the account menu once there is a session. */
@@ -11,7 +12,13 @@ export function AccountLink() {
 	const { authClient, viewPaths } = useAuth();
 	const { data: session } = useSession(authClient);
 
-	if (session) return <UserButton size="icon" />;
+	if (session)
+		return (
+			<UserButton
+				size="icon"
+				links={[<CatalogAdminLink key="admin" userId={session.user.id} />]}
+			/>
+		);
 
 	return (
 		<LinkButton

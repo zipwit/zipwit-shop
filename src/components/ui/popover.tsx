@@ -1,4 +1,3 @@
-import { motion } from "motion/react"
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover"
 import { cn } from "#/lib/utils"
 
@@ -32,10 +31,9 @@ function PopoverContent({
         className="isolate z-50"
       >
         <PopoverPrimitive.Popup
-          render={<motion.div initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} />}
           data-slot="popover-content"
           className={cn(
-            "floating-panel z-50 flex w-72 flex-col gap-4 p-4 text-sm outline-none",
+            "floating-panel motion-safe:transition-opacity motion-safe:duration-150 data-starting-style:opacity-0 data-ending-style:opacity-0 z-50 flex w-72 flex-col gap-4 p-4 text-sm outline-none",
             className
           )}
           {...props}

@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "#/components/ui/button";
 import {
 	type CatalogFilters,
-	DEFAULT_FILTERS,
+	clearCatalogFilters,
 	type UpdateCatalogFilters,
 } from "#/features/search/catalog-filters";
 import { colorLabel } from "#/i18n/color-label";
@@ -142,9 +142,7 @@ export function ActiveFilters({
 				<Button
 					variant="ghost"
 					size="xs"
-					onClick={() =>
-						onChange((current) => ({ ...DEFAULT_FILTERS, sort: current.sort }))
-					}
+					onClick={() => onChange(clearCatalogFilters)}
 				>
 					{t("Clear all")}
 				</Button>

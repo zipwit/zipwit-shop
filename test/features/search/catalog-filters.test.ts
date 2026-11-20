@@ -50,6 +50,20 @@ describe("catalogFiltersSchema", () => {
 		expect(parsed.sort).toBe("price-asc");
 		expect(hasActiveFilters(parsed)).toBe(true);
 	});
+
+	it("treats differently capitalized facet selections as a single choice", () => {
+		expect(
+			catalogFiltersSchema.parse({
+				brands: ["Nike", "NIKE", "New Balance"],
+				sizes: ["XL", "xl"],
+				colors: ["Red", "RED", "red"],
+			}),
+		).toMatchObject({
+			brands: ["Nike", "New Balance"],
+			sizes: ["XL"],
+			colors: ["Red"],
+		});
+	});
 });
 
 describe("effectiveSort", () => {

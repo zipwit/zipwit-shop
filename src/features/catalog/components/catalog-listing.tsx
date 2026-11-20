@@ -1,15 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { InfiniteScrollFooter } from "#/components/infinite-scroll-footer";
-import { Button } from "#/components/ui/button";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/ui/empty";
-import { isDeal } from "#/data/catalog.types";
+import { RetryNotice } from "#/components/retry-notice";
 import {
 	catalogFacetsQuery,
 	catalogQuery,
@@ -17,14 +9,13 @@ import {
 import {
 	type CatalogFilters,
 	type CatalogScope,
-	DEFAULT_FILTERS,
+	clearCatalogFilters,
 	hasActiveFilters,
 	type UpdateCatalogFilters,
 } from "#/features/search/catalog-filters";
 import { useTranslation } from "#/i18n/translate";
-import { DealCard, dealImageLoading } from "./deal-card";
+import { CatalogResults } from "./catalog-results";
 import { FilterBar } from "./filter-bar";
-import { ProductGrid } from "./product-grid";
 
 type CatalogListingProps = {
 	scope: CatalogScope;
@@ -77,63 +68,21 @@ export function CatalogListing({
 			/>
 
 			{isError && !isFetchNextPageError && (
-				<div className="mt-8 flex flex-wrap items-center gap-3">
-					<p role="alert">{t("Couldn't load results.")}</p>
-					<Button
-						variant="outline"
-						disabled={isFetching}
-						onClick={() => refetch()}
-					>
-						{t("Try again")}
-					</Button>
-				</div>
+				<RetryNotice
+					className="mt-8"
+					message={t("Couldn't load results.")}
+					retrying={isFetching}
+					onRetry={() => refetch()}
+				/>
 			)}
-			{items.length === 0 ? (
-				!data || isPlaceholderData ? null : filtered ? (
-					<Empty className="my-8 border">
-						<EmptyHeader>
-							<EmptyTitle>{t("Nothing matches these filters.")}</EmptyTitle>
-							<EmptyDescription>
-								{t("Try a shorter search or remove a filter.")}
-							</EmptyDescription>
-						</EmptyHeader>
-						<EmptyContent>
-							<Button
-								variant="outline"
-								onClick={() =>
-									onFiltersChange((current) => ({
-										...DEFAULT_FILTERS,
-										sort: current.sort,
-									}))
-								}
-							>
-								{t("Clear filters")}
-							</Button>
-						</EmptyContent>
-					</Empty>
-				) : (
-					(empty ?? (
-						<Empty className="my-8 border">
-							<EmptyHeader>
-								<EmptyTitle>{t("No products yet.")}</EmptyTitle>
-								<EmptyDescription>
-									{t("Check back after the next price refresh.")}
-								</EmptyDescription>
-							</EmptyHeader>
-						</Empty>
-					))
-				)
-			) : scope.mode === "deals" ? (
-				<ul className="mt-8 grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 md:grid-cols-3 lg:grid-cols-4">
-					{items.filter(isDeal).map((deal, index) => (
-						<li key={deal.id}>
-							<DealCard deal={deal} loading={dealImageLoading(index)} />
-						</li>
-					))}
-				</ul>
-			) : (
-				<ProductGrid products={items} />
-			)}
+			<CatalogResults
+				items={items}
+				mode={scope.mode}
+				showEmpty={Boolean(data) && !isPlaceholderData && !isError}
+				filtered={filtered}
+				empty={empty}
+				onClear={() => onFiltersChange(clearCatalogFilters)}
+			/>
 
 			<InfiniteScrollFooter
 				hasNextPage={!isPlaceholderData && hasNextPage}

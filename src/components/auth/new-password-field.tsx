@@ -1,8 +1,7 @@
 import { useAuth } from "@better-auth-ui/react";
-import { fieldComponents, useFieldContext } from "#/components/form/app-form";
+import { useFieldContext } from "#/components/form/form-context";
+import { FormTextField } from "#/components/form/form-text-field";
 import { PasswordStrengthMeter } from "./password-strength-meter";
-
-const { FormTextField } = fieldComponents;
 
 type PasswordFieldState = { disabled?: boolean; isLoading?: boolean };
 

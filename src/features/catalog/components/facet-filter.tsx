@@ -3,6 +3,7 @@ import { Badge } from "#/components/ui/badge";
 import { Checkbox } from "#/components/ui/checkbox";
 import { Label } from "#/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "#/components/ui/toggle-group";
+import { facetKey } from "#/features/search/catalog-filters";
 import { FilterPopover } from "./filter-popover";
 
 type FacetOption = { value: string; count: number };
@@ -21,17 +22,23 @@ type FacetFilterProps = {
 export function FacetFilter({
 	label,
 	options,
-	selected,
+	selected: urlValues,
 	onChange,
 	layout = "list",
 	getOptionLabel = (value) => value,
 }: FacetFilterProps) {
 	const id = useId();
 
+	const available = new Map(
+		options.map(({ value }) => [facetKey(value), value]),
+	);
+	const selected = urlValues.map(
+		(value) => available.get(facetKey(value)) ?? value,
+	);
 	const shown = [
 		...options,
 		...selected
-			.filter((value) => !options.some((option) => option.value === value))
+			.filter((value) => !available.has(facetKey(value)))
 			.map((value) => ({ value, count: 0 })),
 	];
 	if (shown.length === 0) return null;

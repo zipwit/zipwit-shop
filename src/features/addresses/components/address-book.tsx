@@ -3,6 +3,7 @@ import { Add01Icon, Location01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
+import { RetryNotice } from "#/components/retry-notice";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import {
@@ -17,6 +18,7 @@ import { ItemGroup, ItemSeparator } from "#/components/ui/item";
 import { ItemSkeleton } from "#/components/ui/item-skeleton";
 import { useTranslation } from "#/i18n/translate";
 import { cn } from "#/lib/utils";
+import type { Address } from "../address.functions";
 import { addressesQuery } from "../address.queries";
 import { MAX_ADDRESSES } from "../address.schema";
 import { AddressDialog } from "./address-dialog";
@@ -66,49 +68,17 @@ export function AddressBook({ className }: AddressBookProps) {
 					{isPending ? (
 						<ItemSkeleton address />
 					) : isError ? (
-						<div className="flex flex-col items-start gap-3 p-4">
-							<p role="alert" className="text-destructive text-sm">
-								{t("Couldn't load your addresses.")}
-							</p>
-							<Button
-								variant="outline"
-								size="sm"
-								disabled={isFetching}
-								onClick={() => refetch()}
-							>
-								{isFetching ? t("Trying again…") : t("Try again")}
-							</Button>
-						</div>
-					) : addresses.length === 0 ? (
-						<Empty>
-							<EmptyHeader>
-								<EmptyMedia variant="icon">
-									<HugeiconsIcon icon={Location01Icon} />
-								</EmptyMedia>
-								<EmptyTitle>{t("No saved addresses")}</EmptyTitle>
-								<EmptyDescription>
-									{t("Save and manage your delivery addresses.")}
-								</EmptyDescription>
-							</EmptyHeader>
-							<EmptyContent>
-								<Button size="sm" onClick={() => setAdding(true)}>
-									<HugeiconsIcon icon={Add01Icon} data-icon="inline-start" />
-									{t("Add address")}
-								</Button>
-							</EmptyContent>
-						</Empty>
+						<RetryNotice
+							className="p-4"
+							message={t("Couldn't load your addresses.")}
+							retrying={isFetching}
+							onRetry={() => refetch()}
+						/>
 					) : (
-						<ItemGroup className="gap-0!">
-							{addresses.map((address, index) => (
-								<Fragment key={address.id}>
-									{index > 0 && <ItemSeparator className="my-0!" />}
-									<AddressRow
-										address={address}
-										isOnly={addresses.length === 1}
-									/>
-								</Fragment>
-							))}
-						</ItemGroup>
+						<SavedAddresses
+							addresses={addresses}
+							onAdd={() => setAdding(true)}
+						/>
 					)}
 				</CardContent>
 
@@ -130,5 +100,45 @@ export function AddressBook({ className }: AddressBookProps) {
 				firstAddress={count === 0}
 			/>
 		</div>
+	);
+}
+
+function SavedAddresses({
+	addresses,
+	onAdd,
+}: {
+	addresses: Address[];
+	onAdd: () => void;
+}) {
+	const t = useTranslation();
+	if (!addresses.length)
+		return (
+			<Empty>
+				<EmptyHeader>
+					<EmptyMedia variant="icon">
+						<HugeiconsIcon icon={Location01Icon} />
+					</EmptyMedia>
+					<EmptyTitle>{t("No saved addresses")}</EmptyTitle>
+					<EmptyDescription>
+						{t("Save and manage your delivery addresses.")}
+					</EmptyDescription>
+				</EmptyHeader>
+				<EmptyContent>
+					<Button size="sm" onClick={onAdd}>
+						<HugeiconsIcon icon={Add01Icon} data-icon="inline-start" />
+						{t("Add address")}
+					</Button>
+				</EmptyContent>
+			</Empty>
+		);
+	return (
+		<ItemGroup className="gap-0!">
+			{addresses.map((address, index) => (
+				<Fragment key={address.id}>
+					{index > 0 && <ItemSeparator className="my-0!" />}
+					<AddressRow address={address} isOnly={addresses.length === 1} />
+				</Fragment>
+			))}
+		</ItemGroup>
 	);
 }

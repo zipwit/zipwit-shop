@@ -1,5 +1,6 @@
 import { createFileRoute, stripSearchParams } from "@tanstack/react-router";
 import { Container } from "#/components/layout/container";
+import { PageHeader } from "#/components/layout/page-header";
 import { site } from "#/data/site";
 import { CatalogListing } from "#/features/catalog/components/catalog-listing";
 import { loadCatalog } from "#/features/search/catalog.queries";
@@ -44,13 +45,13 @@ function StorePage() {
 	const t = useTranslation();
 	return (
 		<Container className="py-10 md:py-14">
-			<p className="type-eyebrow text-muted-foreground">{t("Shop by store")}</p>
-			<h1 className="type-title mt-4 text-3xl md:text-5xl">{title}</h1>
-			<p className="type-body mt-4 max-w-2xl text-sm text-muted-foreground sm:text-base">
-				{t(
+			<PageHeader
+				title={title}
+				eyebrow={t("Shop by store")}
+				description={t(
 					"Items from this store share one shipping charge and free-shipping threshold.",
 				)}
-			</p>
+			/>
 			<CatalogListing
 				key={scope.storeId}
 				scope={scope}

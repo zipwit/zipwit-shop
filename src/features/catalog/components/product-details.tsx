@@ -6,6 +6,7 @@ import type { ProductDetail } from "#/features/catalog/product.functions";
 import type { SkuSelection } from "#/features/catalog/product-selection";
 import { StoreLabel } from "#/features/stores/store-label";
 import { colorLabel } from "#/i18n/color-label";
+import { formatStoreDateTime } from "#/i18n/format";
 import { useLocale } from "#/i18n/locale";
 import { useTranslation } from "#/i18n/translate";
 import { isOnSale } from "#/lib/price";
@@ -89,6 +90,7 @@ function ProductHeading({
 	displaySku: ProductSku | undefined;
 }) {
 	const t = useTranslation();
+	const locale = useLocale();
 	return (
 		<div>
 			{product.brand && (
@@ -126,6 +128,14 @@ function ProductHeading({
 					{isOnSale(displaySku.price, displaySku.originalPrice) && (
 						<Badge>{t("Sale")}</Badge>
 					)}
+				</p>
+			)}
+			{product.checkedAt && (
+				<p className="mt-3 text-sm text-muted-foreground">
+					{t("Last price check")} ·{" "}
+					<time dateTime={product.checkedAt}>
+						{formatStoreDateTime(product.checkedAt, locale)}
+					</time>
 				</p>
 			)}
 		</div>

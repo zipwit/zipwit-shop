@@ -1,5 +1,6 @@
 import { createFileRoute, stripSearchParams } from "@tanstack/react-router";
 import { Container } from "#/components/layout/container";
+import { PageHeader } from "#/components/layout/page-header";
 import { categories, categorySchema } from "#/data/catalog";
 import { site } from "#/data/site";
 import { CatalogListing } from "#/features/catalog/components/catalog-listing";
@@ -38,14 +39,13 @@ function CategoryPage() {
 	const t = useTranslation();
 	return (
 		<Container className="py-8 md:py-12">
-			<p className="type-eyebrow text-muted-foreground">
-				{t("Shop by category")}
-			</p>
-			<h1 className="type-title mt-4 text-3xl md:text-5xl">{title}</h1>
-			<p className="mt-4 mb-6 text-sm text-muted-foreground">
-				{t("For men, women and kids.")}
-			</p>
-			<CategoryLinks />
+			<PageHeader
+				title={title}
+				eyebrow={t("Shop by category")}
+				description={t("For men, women and kids.")}
+			>
+				<CategoryLinks />
+			</PageHeader>
 			<CatalogListing
 				key={scope.category}
 				scope={scope}

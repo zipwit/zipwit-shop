@@ -1,4 +1,3 @@
-import { motion } from "motion/react";
 import type { ReactNode } from "react";
 import type { ProductListItem } from "#/data/catalog.types";
 import { cn } from "#/lib/utils";
@@ -18,9 +17,7 @@ export function CatalogCard({
 	className?: string;
 }) {
 	return (
-		<motion.article
-			whileHover={{ y: -4 }}
-			whileTap={{ scale: 0.99 }}
+		<article
 			className={cn(
 				"product-tile group relative flex h-full min-w-0 flex-col gap-4 p-2.5 pb-4 sm:p-3 sm:pb-5",
 				className,
@@ -38,6 +35,6 @@ export function CatalogCard({
 			<div className="flex flex-1 flex-col gap-2 px-1.5 sm:px-2">
 				<CatalogCardDetails product={product} />
 			</div>
-		</motion.article>
+		</article>
 	);
 }

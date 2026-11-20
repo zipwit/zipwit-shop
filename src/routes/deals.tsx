@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, stripSearchParams } from "@tanstack/react-router";
 import { Container } from "#/components/layout/container";
+import { PageHeader } from "#/components/layout/page-header";
 import { site } from "#/data/site";
 import { CatalogListing } from "#/features/catalog/components/catalog-listing";
 import { loadCatalog } from "#/features/search/catalog.queries";
@@ -41,12 +42,15 @@ function DealsPage() {
 
 	return (
 		<Container className="py-10 md:py-14">
-			<h1 className="type-title text-3xl md:text-5xl">{t("All deals")}</h1>
-			<p className="type-body mt-4 max-w-2xl text-sm text-muted-foreground sm:text-base">
-				{t("Everything on sale right now.")}{" "}
-				{priceCheckNote(stats.checkedAt, undefined, locale)}
-			</p>
-
+			<PageHeader
+				title={t("All deals")}
+				description={
+					<>
+						{t("Everything on sale right now.")}{" "}
+						{priceCheckNote(stats.checkedAt, undefined, locale)}
+					</>
+				}
+			/>
 			<CatalogListing
 				scope={scope}
 				filters={filters}

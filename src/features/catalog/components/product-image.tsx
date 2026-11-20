@@ -4,6 +4,10 @@ import { type ComponentProps, useState } from "react";
 import { useTranslation } from "#/i18n/translate";
 import { cn } from "#/lib/utils";
 
+/** Prioritizes the first four images in a product grid or carousel. */
+export const catalogImageLoading = (index: number) =>
+	index < 4 ? "eager" : "lazy";
+
 type ProductImageProps = {
 	src: string | null;
 	alt: string;

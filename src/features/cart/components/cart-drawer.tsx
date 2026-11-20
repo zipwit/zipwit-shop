@@ -15,6 +15,7 @@ import { useCart, useCartUpdating } from "#/features/cart/use-cart";
 import { useTranslation } from "#/i18n/translate";
 import { usePriceFormatter } from "#/lib/price";
 import { CartAvailabilityNotice } from "./cart-availability-notice";
+import { CartLoadBoundary } from "./cart-load-boundary";
 import { CartShipments } from "./cart-shipments";
 
 export function CartDrawer() {
@@ -45,30 +46,8 @@ export function CartDrawer() {
 }
 
 function CartDrawerContents({ cart }: { cart: ReturnType<typeof useCart> }) {
-	const t = useTranslation();
-	if (cart.isPending) {
-		return (
-			<p role="status" className="p-4 text-muted-foreground">
-				{t("Loading your cart…")}
-			</p>
-		);
-	}
-	if (cart.isError) {
-		return (
-			<div className="flex flex-col items-start gap-3 p-4">
-				<p role="alert">{t("Couldn't load your cart.")}</p>
-				<Button
-					variant="outline"
-					disabled={cart.isFetching}
-					onClick={() => cart.refetch()}
-				>
-					{cart.isFetching ? t("Trying again…") : t("Try again")}
-				</Button>
-			</div>
-		);
-	}
 	return (
-		<>
+		<CartLoadBoundary cart={cart} className="p-4">
 			{cart.unavailableIds.length > 0 && (
 				<div className="px-5 pb-5 sm:px-6">
 					<CartAvailabilityNotice count={cart.unavailableIds.length} />
@@ -88,7 +67,7 @@ function CartDrawerContents({ cart }: { cart: ReturnType<typeof useCart> }) {
 					/>
 				</>
 			)}
-		</>
+		</CartLoadBoundary>
 	);
 }
 

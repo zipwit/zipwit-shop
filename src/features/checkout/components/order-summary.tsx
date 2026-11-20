@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { LinkButton } from "#/components/link-button";
-import { Button } from "#/components/ui/button";
 import type { CartItem } from "#/features/cart/cart";
+import { CartLoadBoundary } from "#/features/cart/components/cart-load-boundary";
 import type { useCart } from "#/features/cart/use-cart";
 import { ProductImage } from "#/features/catalog/components/product-image";
 import { ShipmentDetails } from "#/features/shipping/shipment-details";
@@ -154,44 +154,37 @@ export function CartSummary({ cart }: { cart: ReturnType<typeof useCart> }) {
 	const { formatPrice } = usePriceFormatter();
 	return (
 		<SummaryCard>
-			{cart.isPending ? (
-				<p role="status">{t("Loading your cart…")}</p>
-			) : cart.isError ? (
-				<>
-					<p role="alert">{t("Couldn't load your cart.")}</p>
-					<Button variant="outline" onClick={() => cart.refetch()}>
-						{t("Try again")}
-					</Button>
-				</>
-			) : !cart.items.length ? (
-				<>
-					<p className="text-sm text-muted-foreground">
-						{t("Your cart is empty")}
-					</p>
-					<LinkButton to="/deals" variant="outline">
-						{t("All deals")}
-					</LinkButton>
-				</>
-			) : (
-				<>
-					{groupShipments(cart.items).map((group, index) => (
-						<ShipmentItems
-							key={group.groupId}
-							number={index + 1}
-							items={group.lines}
-						/>
-					))}
-					<div className="flex flex-wrap justify-between gap-2 border-t pt-4 font-semibold">
-						<span>{t("Subtotal")}</span>
-						<span>{formatPrice(cart.subtotal, cart.currency)}</span>
-					</div>
-					<p className="text-xs leading-relaxed text-muted-foreground">
-						{t(
-							"Review your final total, including shipping and fees, before you pay.",
-						)}
-					</p>
-				</>
-			)}
+			<CartLoadBoundary cart={cart}>
+				{!cart.items.length ? (
+					<>
+						<p className="text-sm text-muted-foreground">
+							{t("Your cart is empty")}
+						</p>
+						<LinkButton to="/deals" variant="outline">
+							{t("All deals")}
+						</LinkButton>
+					</>
+				) : (
+					<>
+						{groupShipments(cart.items).map((group, index) => (
+							<ShipmentItems
+								key={group.groupId}
+								number={index + 1}
+								items={group.lines}
+							/>
+						))}
+						<div className="flex flex-wrap justify-between gap-2 border-t pt-4 font-semibold">
+							<span>{t("Subtotal")}</span>
+							<span>{formatPrice(cart.subtotal, cart.currency)}</span>
+						</div>
+						<p className="text-xs leading-relaxed text-muted-foreground">
+							{t(
+								"Review your final total, including shipping and fees, before you pay.",
+							)}
+						</p>
+					</>
+				)}
+			</CartLoadBoundary>
 		</SummaryCard>
 	);
 }

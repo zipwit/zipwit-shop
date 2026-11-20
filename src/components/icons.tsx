@@ -29,18 +29,13 @@ import type { ComponentProps } from "react";
 
 type IconProps = Omit<ComponentProps<typeof HugeiconsIcon>, "icon">;
 
+/** Adapts Hugeicons to the component names and props used by the Better Auth UI. */
 const createIcon = (icon: IconSvgElement) =>
 	// biome-ignore lint/correctness/noComponentHookFactories: runs once per icon at module load, never during render.
 	function Icon(props: IconProps) {
 		return <HugeiconsIcon icon={icon} strokeWidth={2} {...props} />;
 	};
 
-/**
- * Hugeicons under the names the generated Better Auth UI components expect.
- * Those components were written against lucide-react; mapping the names here
- * keeps them untouched (so upstream updates still diff cleanly) while
- * Hugeicons stays the only icon library in the bundle.
- */
 export const CalendarIcon = createIcon(Calendar03Icon);
 export const Check = createIcon(Tick02Icon);
 export const ChevronDownIcon = createIcon(ArrowDown01Icon);

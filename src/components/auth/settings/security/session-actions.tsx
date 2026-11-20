@@ -5,20 +5,9 @@ import {
 } from "@better-auth-ui/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ConfirmActionDialog } from "#/components/confirm-action-dialog";
 import { LogOut } from "#/components/icons";
-
-import {
-	AlertDialog,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogMedia,
-	AlertDialogTitle,
-} from "#/components/ui/alert-dialog";
 import { Button } from "#/components/ui/button";
-import { Spinner } from "#/components/ui/spinner";
 
 type PendingAction = "other" | "all";
 
@@ -43,6 +32,9 @@ export function SessionActions(props: { hasOtherSessions: boolean }) {
 
 	const isPending = revokeOtherSessions.isPending || revokeSessions.isPending;
 	const isEverywhere = action === "all";
+	const actionLabel = isEverywhere
+		? localization.settings.signOutEverywhere
+		: localization.settings.signOutOtherDevices;
 
 	return (
 		<>
@@ -67,48 +59,23 @@ export function SessionActions(props: { hasOtherSessions: boolean }) {
 				</Button>
 			</div>
 
-			<AlertDialog
+			<ConfirmActionDialog
 				open={action !== null}
-				onOpenChange={(open) => !open && !isPending && setAction(null)}
+				pending={isPending}
+				onDismiss={() => setAction(null)}
+				onConfirm={() =>
+					isEverywhere ? revokeSessions.mutate() : revokeOtherSessions.mutate()
+				}
+				icon={<LogOut />}
+				title={actionLabel}
+				confirmLabel={actionLabel}
+				cancelLabel={localization.settings.cancel}
+				variant={isEverywhere ? "destructive" : "default"}
 			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
-							<LogOut />
-						</AlertDialogMedia>
-						<AlertDialogTitle>
-							{isEverywhere
-								? localization.settings.signOutEverywhere
-								: localization.settings.signOutOtherDevices}
-						</AlertDialogTitle>
-						<AlertDialogDescription>
-							{isEverywhere
-								? localization.settings.signOutEverywhereDescription
-								: localization.settings.signOutOtherDevicesDescription}
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel disabled={isPending}>
-							{localization.settings.cancel}
-						</AlertDialogCancel>
-						<Button
-							disabled={isPending}
-							onClick={() =>
-								isEverywhere
-									? revokeSessions.mutate()
-									: revokeOtherSessions.mutate()
-							}
-							type="button"
-							variant={isEverywhere ? "destructive" : "default"}
-						>
-							{isPending && <Spinner />}
-							{isEverywhere
-								? localization.settings.signOutEverywhere
-								: localization.settings.signOutOtherDevices}
-						</Button>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+				{isEverywhere
+					? localization.settings.signOutEverywhereDescription
+					: localization.settings.signOutOtherDevicesDescription}
+			</ConfirmActionDialog>
 		</>
 	);
 }

@@ -8,16 +8,17 @@ import {
 } from "@better-auth-ui/core";
 import { createFormHook } from "@tanstack/react-form";
 
+import { fieldComponents, formComponents } from "#/components/form/app-form";
 import {
-	clearFieldServerError,
-	fieldComponents,
 	fieldContext,
-	formComponents,
 	formContext,
-	isFieldInvalid,
 	useFieldContext,
 	useFormContext,
-} from "#/components/form/app-form";
+} from "#/components/form/form-context";
+import {
+	clearFieldServerError,
+	isFieldInvalid,
+} from "#/components/form/form-errors";
 import { AdditionalField, type AdditionalFieldProps } from "./additional-field";
 
 type AuthFormAdditionalFieldProps = Omit<

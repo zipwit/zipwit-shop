@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { RetryNotice } from "#/components/retry-notice";
 import { Button } from "#/components/ui/button";
 import type { Address } from "#/features/addresses/address.functions";
 import { addressesQuery } from "#/features/addresses/address.queries";
@@ -8,7 +9,7 @@ import { CartAvailabilityNotice } from "#/features/cart/components/cart-availabi
 import { useCart, useCartUpdating } from "#/features/cart/use-cart";
 import { getShipmentRule, groupShipments } from "#/features/shipping/shipping";
 import { useTranslation } from "#/i18n/translate";
-import { isUsCountry } from "../checkout";
+import { selectDeliveryAddressId } from "../checkout";
 import { CheckoutAddressPicker } from "./checkout-address";
 export function CheckoutDelivery({
 	userId,
@@ -29,16 +30,19 @@ export function CheckoutDelivery({
 	const {
 		data: addresses = [],
 		isError: addressError,
+		isFetching: fetchingAddresses,
 		refetch: refreshAddresses,
 	} = useQuery({ ...addressesQuery(userId), initialData: initialAddresses });
 	const [addingAddress, setAddingAddress] = useState(false);
 	const [addressId, setAddressId] = useState("");
-	const selected =
-		addresses.find((address) => address.id === addressId) ??
-		addresses.find(
-			(address) => address.isPrimary && isUsCountry(address.country),
-		) ??
-		addresses.find((address) => isUsCountry(address.country));
+	const selectedId = selectDeliveryAddressId(addresses, addressId);
+	const cartReady =
+		!cart.isPending &&
+		!cart.isError &&
+		!cartUpdating &&
+		cart.items.length > 0 &&
+		cart.unavailableIds.length === 0 &&
+		groupShipments(cart.items).every(({ lines }) => getShipmentRule(lines));
 
 	return (
 		<>
@@ -48,14 +52,16 @@ export function CheckoutDelivery({
 				</p>
 			)}
 			{addressError && (
-				<Button variant="outline" onClick={() => refreshAddresses()}>
-					{t("Try again")}
-				</Button>
+				<RetryNotice
+					message={t("Couldn't load your addresses.")}
+					onRetry={() => refreshAddresses()}
+					retrying={fetchingAddresses}
+				/>
 			)}
 			<CartAvailabilityNotice count={cart.unavailableIds.length} />
 			<CheckoutAddressPicker
 				addresses={addresses}
-				selectedId={selected?.id}
+				selectedId={selectedId}
 				disabled={Boolean(busy)}
 				onSelect={setAddressId}
 				onAdd={() => setAddingAddress(true)}
@@ -63,20 +69,8 @@ export function CheckoutDelivery({
 			<Button
 				className="h-auto min-h-12 w-full whitespace-normal py-3"
 				size="lg"
-				disabled={
-					!selected ||
-					!ready ||
-					cart.isPending ||
-					cart.isError ||
-					cartUpdating ||
-					!cart.items.length ||
-					cart.unavailableIds.length > 0 ||
-					groupShipments(cart.items).some(
-						({ lines }) => !getShipmentRule(lines),
-					) ||
-					Boolean(busy)
-				}
-				onClick={() => selected && onPrepare(selected.id)}
+				disabled={!ready || !selectedId || !cartReady || Boolean(busy)}
+				onClick={() => selectedId && onPrepare(selectedId)}
 			>
 				{busy === "prepare"
 					? t("Preparing checkout…")

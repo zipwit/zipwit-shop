@@ -1,5 +1,6 @@
 import { createFileRoute, stripSearchParams } from "@tanstack/react-router";
 import { Container } from "#/components/layout/container";
+import { PageHeader } from "#/components/layout/page-header";
 import {
 	categories,
 	categorySchema,
@@ -55,9 +56,10 @@ function DepartmentPage() {
 				department={scope.department}
 				category={scope.category}
 			/>
-			<h1 className="type-title mt-7 text-3xl md:text-5xl">{title}</h1>
-			<div className="mt-6">
-				<CategoryLinks department={scope.department} />
+			<div className="mt-7">
+				<PageHeader title={title}>
+					<CategoryLinks department={scope.department} />
+				</PageHeader>
 			</div>
 			<CatalogListing
 				key={`${scope.department}/${scope.category ?? ""}`}

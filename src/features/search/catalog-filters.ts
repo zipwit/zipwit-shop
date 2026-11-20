@@ -1,3 +1,4 @@
+import { uniqBy } from "es-toolkit";
 import { z } from "zod";
 import { categorySchema, departmentSchema } from "#/data/catalog";
 import { storeIdSchema } from "#/features/stores/store";
@@ -25,8 +26,15 @@ export const sortLabels = {
 	discount: "Biggest discount",
 } satisfies Record<CatalogSort, string>;
 
-const list = (max: number) =>
-	z.array(z.string().min(1).max(60)).max(max).default([]).catch([]);
+export const facetKey = (value: string) => value.toLowerCase();
+
+const facetList = (max: number) =>
+	z
+		.array(z.string().min(1).max(60))
+		.max(max)
+		.transform((values) => uniqBy(values, facetKey))
+		.default([])
+		.catch([]);
 
 const money = z.int().min(0).max(100_000_000);
 
@@ -37,9 +45,9 @@ const money = z.int().min(0).max(100_000_000);
  */
 export const catalogFiltersSchema = z.object({
 	q: z.string().trim().max(80).optional().catch(undefined),
-	brands: list(20),
-	sizes: list(30),
-	colors: list(20),
+	brands: facetList(20),
+	sizes: facetList(30),
+	colors: facetList(20),
 	minPrice: money.optional().catch(undefined),
 	maxPrice: money.optional().catch(undefined),
 	sale: z.boolean().default(false).catch(false),
@@ -49,6 +57,12 @@ export type CatalogFilters = z.infer<typeof catalogFiltersSchema>;
 export type UpdateCatalogFilters = (previous: CatalogFilters) => CatalogFilters;
 
 export const DEFAULT_FILTERS: CatalogFilters = catalogFiltersSchema.parse({});
+
+/** Clears search and facets while preserving the shopper's sort order. */
+export const clearCatalogFilters: UpdateCatalogFilters = ({ sort }) => ({
+	...DEFAULT_FILTERS,
+	sort,
+});
 
 /** Where a listing lives: a department or category, or the deals view. */
 export const scopeSchema = z.object({
