@@ -6,5 +6,13 @@ node_modules
 !.env.example
 certs/
 
-*.sqlite
-*.sqlite-*
+deal-scout/*
+!deal-scout/src
+!deal-scout/pyproject.toml
+!deal-scout/uv.lock
+!deal-scout/.python-version
+!deal-scout/feeds.example.json
+**/__pycache__
+.aws
+.codex
+.agents

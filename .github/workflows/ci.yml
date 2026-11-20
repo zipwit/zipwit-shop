@@ -13,10 +13,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  deal-scout:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:19.0-alpine
+        env:
+          POSTGRES_PASSWORD: fixture
+          POSTGRES_DB: zipwit_test
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 2s --health-timeout 3s --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:fixture@127.0.0.1:5432/zipwit_test
+    defaults:
+      run:
+        working-directory: deal-scout
+    steps:
+      - uses: actions/checkout@v7
+      - run: pipx install uv==0.13.6
+      - run: uv sync --locked
+      - run: uv run --locked ty check --project ..
+      - run: uv run --locked ruff check .
+      - run: uv run --locked ruff format --check .
+      - run: uv run --locked python -m unittest discover -s tests -v
+
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:19.0-alpine
+        env:
+          POSTGRES_PASSWORD: fixture
+          POSTGRES_DB: zipwit_test
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 2s --health-timeout 3s --health-retries 15
 
     env:
+      DATABASE_URL: postgresql://postgres:fixture@127.0.0.1:5432/zipwit_test
+      TEST_DATABASE_URL: postgresql://postgres:fixture@127.0.0.1:5432/zipwit_test
       COMPOSE_FILE: docker-compose.cluster-test.yaml
       REDIS_CLUSTER_NODES: redis://127.0.0.1:17379,redis://127.0.0.1:17380,redis://127.0.0.1:17381
       BETTER_AUTH_SECRET: ci-cluster-check-only-not-a-production-secret
@@ -63,6 +97,34 @@ jobs:
       - run: pnpm db:migrate
 
       - run: pnpm catalog:check
+
+      - run: node --import tsx scripts/cart-check.ts
+
+      - name: Prepare worker for the storefront integration test
+        run: |
+          pipx install uv==0.13.6
+          uv sync --locked --project deal-scout
+
+      - name: Smoke test the built storefront and migration gate
+        env:
+          NODE_ENV: production
+          HOST: 127.0.0.1
+          PORT: "18339"
+          BETTER_AUTH_URL: http://127.0.0.1:18339
+          RESEND_API_KEY: re_ci_fixture
+          DATABASE_URL: postgresql://postgres:fixture@127.0.0.1:5432/zipwit_smoke
+        run: |
+          PGPASSWORD=fixture createdb -h 127.0.0.1 -U postgres zipwit_smoke
+          node .output/server/index.mjs &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true; wait "$app_pid" || true' EXIT
+          curl --retry 15 --retry-connrefused --retry-delay 1 -fsS "$BETTER_AUTH_URL/api/health" -o /dev/null
+          test "$(curl -sS -o /dev/null -w '%{http_code}' "$BETTER_AUTH_URL/api/ready")" = 503
+          pnpm db:migrate
+          curl -fsS "$BETTER_AUTH_URL/api/ready" -o /dev/null
+          curl -fsS -H 'Cookie: zipwit-locale=en' "$BETTER_AUTH_URL/checkout" -o "$RUNNER_TEMP/checkout.html"
+          grep -q 'Sign in to save your delivery address' "$RUNNER_TEMP/checkout.html"
+          SCOUT_TEST_STOREFRONT="$BETTER_AUTH_URL" deal-scout/.venv/bin/python -m unittest discover -s deal-scout/tests -p test_storefront.py -v
 
       - name: Debug cluster
         if: failure()
